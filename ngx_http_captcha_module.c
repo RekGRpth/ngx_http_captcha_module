@@ -2,7 +2,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 #include <ngx_md5.h>
-#include <hiredis/hiredis.h>
+//#include <hiredis/hiredis.h>
 #include <time.h>
 #include <gd.h>
 #include <gd_errors.h>
@@ -23,8 +23,8 @@
 #define CAPTCHA_CODE_LEN_MAX 6
 #define CAPTCHA_WIDTH 130
 #define CAPTCHA_HEIGHT 30
-#define CAPTCHA_REDIS_HOST "127.0.0.1"
-#define CAPTCHA_REDIS_PORT 6379
+//#define CAPTCHA_REDIS_HOST "127.0.0.1"
+//#define CAPTCHA_REDIS_PORT 6379
 #define CAPTCHA_EXPIRE 3600
 #define CAPTCHA_COOKIE_NAME "captcha_code"
 #define CAPTCHA_ARG_NAME CAPTCHA_COOKIE_NAME
@@ -34,10 +34,10 @@
 
 unsigned seed;
 
-typedef struct _ngx_captcha_redis_conf {
+/*typedef struct _ngx_captcha_redis_conf {
     char *host;
     int port;
-} ngx_captcha_redis_conf;
+} ngx_captcha_redis_conf;*/
 
 typedef struct _ngx_captcha_conf {
     ngx_int_t width;
@@ -45,7 +45,7 @@ typedef struct _ngx_captcha_conf {
     ngx_int_t length;
     char * font;
     ngx_int_t expire;
-    ngx_captcha_redis_conf * redis_conf;
+//    ngx_captcha_redis_conf * redis_conf;
 } ngx_captcha_conf;
 
 typedef struct _png_stream_buffer {
@@ -80,39 +80,39 @@ static in_addr_t get_remote_ip(ngx_http_request_t *req);
 static ngx_str_t get_user_agent(ngx_http_request_t *req);
 static u_char * get_unique_id(ngx_http_request_t *req);
 static u_char * user_crc_hash(ngx_http_request_t *req);
-static redisContext * connectRedis(char *host, int port, ngx_log_t *log);
-static ngx_int_t closeRedisConnect(redisContext *conn);
-static ngx_int_t redisSetex(redisContext *conn, char *key, int expire_time, char *val, ngx_log_t *log);
-static ngx_int_t redisGet(redisContext *conn, char *key, u_char * result, ngx_log_t *log);
+//static redisContext * connectRedis(char *host, int port, ngx_log_t *log);
+//static ngx_int_t closeRedisConnect(redisContext *conn);
+//static ngx_int_t redisSetex(redisContext *conn, char *key, int expire_time, char *val, ngx_log_t *log);
+//static ngx_int_t redisGet(redisContext *conn, char *key, u_char * result, ngx_log_t *log);
 static void create_captcha_img(ngx_pool_t * pool, char * img_buf, int *len, char * code, ngx_captcha_conf * captcha_conf);
-static void save_captcha_code(ngx_http_request_t *req, char * code);
+//static void save_captcha_code(ngx_http_request_t *req, char * code);
 static ngx_captcha_cookie * generate_captcha_cookie(ngx_http_request_t *req, ngx_captcha_conf * captcha_conf);
 static ngx_int_t set_captcha_cookie(ngx_http_request_t *req, ngx_captcha_conf * captcha_conf);
-static ngx_uint_t get_captcha_cookie(ngx_http_request_t *req, u_char * captcha_id);
-static ngx_uint_t get_query_param_value(ngx_http_request_t *req, const char * param_name, ngx_str_t *param_value);
-static ngx_int_t get_user_captcha_code(ngx_http_request_t *req, u_char *input_code);
+//static ngx_uint_t get_captcha_cookie(ngx_http_request_t *req, u_char * captcha_id);
+//static ngx_uint_t get_query_param_value(ngx_http_request_t *req, const char * param_name, ngx_str_t *param_value);
+//static ngx_int_t get_user_captcha_code(ngx_http_request_t *req, u_char *input_code);
 static char *set_captcha_init(ngx_conf_t *, ngx_command_t *, void *);
 static char *set_captcha_font(ngx_conf_t *, ngx_command_t *, void *);
 static char *set_captcha_width(ngx_conf_t *, ngx_command_t *, void *);
 static char *set_captcha_height(ngx_conf_t *, ngx_command_t *, void *);
 static char *set_captcha_length(ngx_conf_t *, ngx_command_t *, void *);
 static char *set_captcha_expire(ngx_conf_t *, ngx_command_t *, void *);
-static char *set_captcha_redis_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+//static char *set_captcha_redis_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *set_captcha_output_handler(ngx_conf_t *, ngx_command_t *, void *);
 static ngx_int_t captcha_output_handler(ngx_http_request_t *req);
-static char *set_captcha_auth_handler(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static ngx_int_t captcha_auth_handler(ngx_http_request_t *req);
+//static char *set_captcha_auth_handler(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+//static ngx_int_t captcha_auth_handler(ngx_http_request_t *req);
 
 
 static ngx_command_t captcha_commands[] = {
-  {
+/*  {
     ngx_string("captcha_redis_conf"),
     NGX_HTTP_LOC_CONF | NGX_CONF_TAKE2,
     set_captcha_redis_conf,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,
     NULL
-  },
+  },*/
   {
     ngx_string("captcha_init"),
     NGX_HTTP_LOC_CONF | NGX_CONF_NOARGS,
@@ -169,14 +169,14 @@ static ngx_command_t captcha_commands[] = {
     0,
     NULL
   },
-  {
+/*  {
     ngx_string("captcha_auth"),
     NGX_HTTP_LOC_CONF | NGX_CONF_NOARGS,
     set_captcha_auth_handler,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,
     NULL
-  },
+  },*/
   ngx_null_command
 };
  
@@ -194,7 +194,7 @@ ngx_module_t ngx_http_captcha_module = {
 };
 
 ngx_captcha_conf * captcha_conf;
-ngx_captcha_redis_conf * redis_conf;
+//ngx_captcha_redis_conf * redis_conf;
 
 static void *  
 ngx_prealloc(ngx_pool_t *pool, void *p, size_t old_size, size_t new_size)  
@@ -272,10 +272,10 @@ static void
 gd_image_TTF_text(gdImagePtr img,int font_size, int angle, long x, long y, long font_color, const char * font, char *str)
 {
     int brect[8];
-    char * error = NULL;
+//    char * error = NULL;
 
     angle = angle * (M_PI/180);
-    error = gdImageStringFT(img, brect, font_color, (char *)font, font_size, angle, x, y, str);
+    /*error = */gdImageStringFT(img, brect, font_color, (char *)font, font_size, angle, x, y, str);
 }
 
 static void 
@@ -401,30 +401,30 @@ create_captcha_png(ngx_pool_t * pool, char *buf, int *len, char *code, ngx_captc
     gdImageDestroy(img);
 }
 
-static void 
+/*static void 
 redis_conf_init(ngx_conf_t *cf) 
 {
   redis_conf = (ngx_captcha_redis_conf *)ngx_pcalloc(cf->pool, sizeof(ngx_captcha_redis_conf));//alloc 4
   redis_conf->host = (char *)CAPTCHA_REDIS_HOST;
   redis_conf->port = CAPTCHA_REDIS_PORT;
-};
+};*/
 
 
 static char *
 set_captcha_init(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) 
 {
 
-  if(!redis_conf)
+/*  if(!redis_conf)
   {
     redis_conf_init(cf);
-  }
+  }*/
   captcha_conf = (ngx_captcha_conf *)ngx_pcalloc(cf->pool, sizeof(ngx_captcha_conf));//alloc 5
   captcha_conf->width = CAPTCHA_WIDTH;
   captcha_conf->height = CAPTCHA_HEIGHT;
   captcha_conf->length = CAPTCHA_CODE_LEN;
   captcha_conf->font = NULL;
   captcha_conf->expire = CAPTCHA_EXPIRE;
-  captcha_conf->redis_conf = redis_conf;
+//  captcha_conf->redis_conf = redis_conf;
   return NGX_CONF_OK;
 };
 
@@ -479,7 +479,7 @@ set_captcha_expire(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 };
 
 
-static char *
+/*static char *
 set_captcha_auth_handler(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) 
 {
   ngx_http_core_loc_conf_t *corecf;
@@ -490,9 +490,9 @@ set_captcha_auth_handler(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     redis_conf_init(cf);
   }
   return NGX_CONF_OK;
-};
+};*/
 
-static char *
+/*static char *
 set_captcha_redis_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) 
 {
   ngx_str_t *value;
@@ -505,7 +505,7 @@ set_captcha_redis_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
   redis_conf->port = ngx_atoi(value[2].data, value[2].len);
 
   return NGX_CONF_OK;
-};
+};*/
 
 static char *
 set_captcha_output_handler(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) 
@@ -523,7 +523,7 @@ get_unique_id(ngx_http_request_t *req)
     return user_crc_hash(req);
 }
 
-static redisContext *
+/*static redisContext *
 connectRedis(char *host, int port, ngx_log_t *log)
 {
     redisContext *conn = redisConnect(host, port);
@@ -538,16 +538,16 @@ connectRedis(char *host, int port, ngx_log_t *log)
                       "connect to redis by host[%s] port[%d]",
                       host,port);
     return conn;
-}
+}*/
 
-static ngx_int_t
+/*static ngx_int_t
 closeRedisConnect(redisContext *conn)
 {
     redisFree(conn);
     return NGX_OK;
-}
+}*/
 
-static ngx_int_t
+/*static ngx_int_t
 redisSetex(redisContext *conn, char *key, int expire_time, char *val, ngx_log_t *log)
 {
     redisReply *reply;
@@ -565,9 +565,9 @@ redisSetex(redisContext *conn, char *key, int expire_time, char *val, ngx_log_t 
                       key, expire_time, val, reply->str);
     freeReplyObject(reply);
     return NGX_OK;
-}
+}*/
 
-static ngx_int_t
+/*static ngx_int_t
 redisGet(redisContext *conn, char *key, u_char * result, ngx_log_t *log)
 { 
     redisReply *reply;
@@ -591,7 +591,7 @@ redisGet(redisContext *conn, char *key, u_char * result, ngx_log_t *log)
 
     freeReplyObject(reply);
     return NGX_OK;
-}
+}*/
 
 static void 
 create_captcha_img(ngx_pool_t * pool, char * img_buf, int *len, char *code, ngx_captcha_conf * captcha_conf)
@@ -599,7 +599,7 @@ create_captcha_img(ngx_pool_t * pool, char * img_buf, int *len, char *code, ngx_
     create_captcha_png(pool, img_buf, len, code, captcha_conf);
 }
 
-static void 
+/*static void 
 save_captcha_code(ngx_http_request_t *req, char * code)
 {
     u_char * unique_id = get_unique_id(req);
@@ -607,7 +607,7 @@ save_captcha_code(ngx_http_request_t *req, char * code)
     redisSetex(conn, (char *)unique_id, CAPTCHA_EXPIRE, code, req->connection->log);
     closeRedisConnect(conn);
     ngx_pfree(req->pool, unique_id);//free 6
-}
+}*/
 
 static ngx_captcha_cookie * 
 generate_captcha_cookie(ngx_http_request_t *req, ngx_captcha_conf * captcha_conf)
@@ -710,7 +710,7 @@ set_captcha_cookie(ngx_http_request_t *req, ngx_captcha_conf * captcha_conf)
 }
 
 
-static ngx_uint_t 
+/*static ngx_uint_t 
 get_captcha_cookie(ngx_http_request_t *req, u_char * captcha_id)
 {
     ngx_str_t cookie_name;
@@ -723,9 +723,9 @@ get_captcha_cookie(ngx_http_request_t *req, u_char * captcha_id)
     captcha_id = ngx_cpymem(captcha_id, cookie_value.data, 16);
 
     return n;
-}
+}*/
 
-static ngx_uint_t
+/*static ngx_uint_t
 get_query_param_value(ngx_http_request_t *req, const char * param_name, ngx_str_t *param_value)
 {
   size_t param_name_len;
@@ -739,9 +739,9 @@ get_query_param_value(ngx_http_request_t *req, const char * param_name, ngx_str_
                       param_name,param_name_len,param_value->data,param_value->len
                       );
   return NGX_OK;
-}
+}*/
 
-static ngx_int_t
+/*static ngx_int_t
 get_user_captcha_code(ngx_http_request_t *req, u_char *input_code)
 {
     ngx_int_t ret;
@@ -774,7 +774,7 @@ get_user_captcha_code(ngx_http_request_t *req, u_char *input_code)
     }
 
     return NGX_ERROR;
-}
+}*/
 
 static in_addr_t
 get_remote_ip(ngx_http_request_t *req)
@@ -823,10 +823,10 @@ captcha_output_handler(ngx_http_request_t *req)
   u_char code[CAPTCHA_CODE_LEN_MAX] = {"\0"};
   
   create_captcha_img(req->pool, (char *)img_buf, &len, (char *)code, captcha_conf);
-  save_captcha_code(req, (char *)code);
+//  save_captcha_code(req, (char *)code);
   set_captcha_cookie(req, captcha_conf);
   ngx_pfree(req->pool, captcha_conf);//free 5
-  ngx_pfree(req->pool, redis_conf);//free 4
+//  ngx_pfree(req->pool, redis_conf);//free 4
 
   req->headers_out.status = 200;
   req->headers_out.content_length_n = len;
@@ -847,7 +847,7 @@ captcha_output_handler(ngx_http_request_t *req)
 }
 
 
-static ngx_int_t
+/*static ngx_int_t
 captcha_auth_handler(ngx_http_request_t *req) 
 {
   size_t len = 0;
@@ -945,4 +945,4 @@ output:
   b->last_buf = 1;
  
  return ngx_http_output_filter(req, &out);
-}
+}*/
