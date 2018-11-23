@@ -147,8 +147,7 @@ static inline u_char *create_captcha_png(ngx_http_request_t *r, int *size, char 
     gdImagePtr img = gdImageCreateTrueColor(captcha->width, captcha->height);
     (void)gdImageFilledRectangle(img, 0, captcha->height, captcha->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
     for (int i = 0, brect[8], x = captcha->width / captcha->length; i < (int)captcha->length; i++) {
-        char str[2] = "\0";
-        memcpy(str, code++, 1);
+        char str[2] = {*code++, '\0'};
         (char *)gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)captcha->font.data, captcha->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), captcha->height / 1.4, str);
     }
     for (int i = 0; i < CAPTCHA_LINE; i++) {
