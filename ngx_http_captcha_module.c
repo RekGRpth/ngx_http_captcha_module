@@ -20,7 +20,6 @@
 #define MD5_HASH_LEN (MD5_BHASH_LEN * 2)
 
 typedef struct {
-//    ngx_flag_t enable;
     ngx_uint_t height;
     ngx_uint_t length;
     ngx_uint_t size;
@@ -269,14 +268,12 @@ static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
     conf->salt.len = 0;
     conf->secret.data = NULL;
     conf->secret.len = 0;
-//    conf->enable = NGX_CONF_UNSET;
     return conf;
 }
 
 static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child) {
     ngx_http_captcha_loc_conf_t *prev = parent;
     ngx_http_captcha_loc_conf_t *conf = child;
-//    ngx_conf_merge_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_uint_value(conf->height, prev->height, CAPTCHA_HEIGHT);
     ngx_conf_merge_uint_value(conf->length, prev->length, CAPTCHA_LENGTH);
     ngx_conf_merge_uint_value(conf->size, prev->size, CAPTCHA_SIZE);
