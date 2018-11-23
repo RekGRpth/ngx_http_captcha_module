@@ -180,36 +180,24 @@ static inline gdImagePtr create_bg(int width, int height) {
     return img;
 }
 
-static inline void gd_image_TTF_text(gdImagePtr img,int font_size, int angle, long x, long y, long font_color, const char *font, char *str) {
-    int brect[8];
-    gdImageStringFT(img, brect, font_color, (char *)font, font_size, angle * (M_PI/180), x, y, str);
-}
-
 static inline void create_font(gdImagePtr img, char *code, int len, int width, int height, char *font, int size) {
-    int x = width / len;
-    int i = 0;
-    int font_color = 0;
     char str[2] = "\0";
-    for (i=0; i<len; i++)     {
+    for (int i = 0, brect[8], x = width / len; i < len; i++)     {
         memcpy(str, code++, 1);
-        font_color = gdImageColorAllocate(img,mt_rand(0, 156),mt_rand(0, 156),mt_rand(0, 156));
-        gd_image_TTF_text(img, size, mt_rand(-30, 30), x * i + mt_rand(1, 5), height / 1.4, font_color, font, str);
+        int color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
+        gdImageStringFT(img, brect, color, font, size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), height / 1.4, str);
     }
 }
 
 static inline void create_line(gdImagePtr img, int width, int height, char *font) {
-    int i, brect[8];
-    int color = 0;
     const char *str = "*";
-    int font_size = 8;
-    int angle = 0;
-    for (i=0;i<6;i++) {
-        color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
+    for (int i = 0; i < 6; i++) {
+        int color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
         gdImageLine(img, mt_rand(0, width), mt_rand(0, height), mt_rand(0, width), mt_rand(0, height), color);
     }
-    for (i=0;i<100;i++) {
-        color = gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255));
-        gdImageStringFT(img, brect, color, font, font_size, angle, mt_rand(0, width), mt_rand(0, height), (char *)str);
+    for (int i = 0, brect[8]; i < 100; i++) {
+        int color = gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255));
+        gdImageStringFT(img, brect, color, font, 8, 0, mt_rand(0, width), mt_rand(0, height), (char *)str);
     }
 }
 
@@ -218,14 +206,9 @@ static inline void _image_output_putc(struct gdIOCtx *ctx, int c) { }
 static inline int _image_output_putbuf(struct gdIOCtx *ctx, const void* buf, int len) {
     png_stream_buffer *p = (png_stream_buffer *)ctx->data;
     size_t nsize = p->size + len;
-    if (p->buffer) {
-        p->buffer = ngx_prealloc(p->pool, p->buffer, p->size, nsize);
-    } else {
-        p->buffer = ngx_pcalloc(p->pool, nsize);//alloc 1
-    }
-    if (!p->buffer) {
-        return -1;
-    }
+    if (p->buffer) p->buffer = ngx_prealloc(p->pool, p->buffer, p->size, nsize);
+    else p->buffer = ngx_pcalloc(p->pool, nsize);//alloc 1
+    if (!p->buffer) return -1;
     memcpy(p->buffer + p->size, buf, len);
     p->size += len;
     return 0;
