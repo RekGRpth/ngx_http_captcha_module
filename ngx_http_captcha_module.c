@@ -173,34 +173,6 @@ static inline void create_code(char *code, int code_len, char *charset, int char
     code[code_len] = '\0';
 }
 
-static inline gdImagePtr create_bg(int width, int height) {
-    gdImagePtr img = gdImageCreateTrueColor(width, height);;
-    int color = gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255));
-    gdImageFilledRectangle(img, 0, height, width, 0, color);
-    return img;
-}
-
-static inline void create_font(gdImagePtr img, char *code, int len, int width, int height, char *font, int size) {
-    char str[2] = "\0";
-    for (int i = 0, brect[8], x = width / len; i < len; i++)     {
-        memcpy(str, code++, 1);
-        int color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
-        gdImageStringFT(img, brect, color, font, size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), height / 1.4, str);
-    }
-}
-
-static inline void create_line(gdImagePtr img, int width, int height, char *font) {
-    const char *str = "*";
-    for (int i = 0; i < 6; i++) {
-        int color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
-        gdImageLine(img, mt_rand(0, width), mt_rand(0, height), mt_rand(0, width), mt_rand(0, height), color);
-    }
-    for (int i = 0, brect[8]; i < 100; i++) {
-        int color = gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255));
-        gdImageStringFT(img, brect, color, font, 8, 0, mt_rand(0, width), mt_rand(0, height), (char *)str);
-    }
-}
-
 static inline void _image_output_putc(struct gdIOCtx *ctx, int c) { }
 
 static inline int _image_output_putbuf(struct gdIOCtx *ctx, const void* buf, int len) {
@@ -244,9 +216,23 @@ static inline void get_png_stream_buffer(ngx_pool_t *pool, gdImagePtr img, char 
 
 static inline void create_captcha_png(ngx_http_request_t *r, char *buf, int *len, char *code) {
     ngx_http_captcha_loc_conf_t *captcha = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    gdImagePtr img = create_bg(captcha->width, captcha->height);
-    create_font(img, code, captcha->length, captcha->width, captcha->height, (char *)captcha->font.data, captcha->size);
-    create_line(img, captcha->width, captcha->height, (char *)captcha->font.data);
+    gdImagePtr img = gdImageCreateTrueColor(captcha->width, captcha->height);
+    int color = gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255));
+    gdImageFilledRectangle(img, 0, captcha->height, captcha->width, 0, color);
+    char str[2] = "\0";
+    for (int i = 0, brect[8], x = captcha->width / captcha->length; i < (int)captcha->length; i++)     {
+        memcpy(str, code++, 1);
+        int color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
+        gdImageStringFT(img, brect, color, (char *)captcha->font.data, captcha->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), captcha->height / 1.4, str);
+    }
+    for (int i = 0; i < 6; i++) {
+        int color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
+        gdImageLine(img, mt_rand(0, captcha->width), mt_rand(0, captcha->height), mt_rand(0, captcha->width), mt_rand(0, captcha->height), color);
+    }
+    for (int i = 0, brect[8]; i < 100; i++) {
+        int color = gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255));
+        gdImageStringFT(img, brect, color, (char *)captcha->font.data, 8, 0, mt_rand(0, captcha->width), mt_rand(0, captcha->height), "*");
+    }
     get_png_stream_buffer(r->pool, img, buf, len);
     gdImageDestroy(img);
 }
