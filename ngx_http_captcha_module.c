@@ -164,16 +164,16 @@ static inline u_char *create_captcha_png(ngx_http_request_t *r, int *size, char 
 static inline ngx_int_t set_captcha_cookie(ngx_http_request_t *r, char *code) {
     ngx_http_captcha_loc_conf_t *captcha = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
     ngx_md5_t md5;
-    ngx_md5_init(&md5);
-    ngx_md5_update(&md5, (const void *)captcha->secret.data, captcha->secret.len);
-    ngx_md5_update(&md5, (const void *)code, (size_t)captcha->length);
+    (void)ngx_md5_init(&md5);
+    (void)ngx_md5_update(&md5, (const void *)captcha->secret.data, captcha->secret.len);
+    (void)ngx_md5_update(&md5, (const void *)code, (size_t)captcha->length);
     u_char salt_buf[32];
     size_t salt_buf_len = ngx_sprintf(salt_buf, "%d", ngx_random()) - salt_buf;
-    ngx_md5_update(&md5, (const void *)salt_buf, salt_buf_len);
+    (void)ngx_md5_update(&md5, (const void *)salt_buf, salt_buf_len);
     u_char bhash[MD5_BHASH_LEN];
-    ngx_md5_final(bhash, &md5);
+    (void)ngx_md5_final(bhash, &md5);
     u_char hash[MD5_HASH_LEN];
-    ngx_hex_dump(hash, bhash, MD5_BHASH_LEN);
+    (u_char *)ngx_hex_dump(hash, bhash, MD5_BHASH_LEN);
     ngx_table_elt_t *set_cookie_hash = ngx_list_push(&r->headers_out.headers);
     ngx_table_elt_t *set_cookie_salt = ngx_list_push(&r->headers_out.headers);
     if (set_cookie_hash == NULL || set_cookie_salt == NULL) return NGX_ERROR;
@@ -214,7 +214,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     r->headers_out.content_type.data = (u_char *)"image/png";
     ngx_http_captcha_loc_conf_t *captcha = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
     u_char code[CAPTCHA_LENGTH+1];// = {"\0"};
-    create_code((char *)code, captcha->length, (char *)captcha->charset.data, captcha->charset.len);
+    (void)create_code((char *)code, captcha->length, (char *)captcha->charset.data, captcha->charset.len);
     rc = set_captcha_cookie(r, (char *)code);
     if (rc != NGX_OK) return rc;
     r->headers_out.status = NGX_HTTP_OK;
@@ -229,7 +229,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
         ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, 0);;
         cln = ngx_pool_cleanup_add(r->pool, 0);
         if (cln == NULL) {
-            gdFree(img_buf);
+            (void)gdFree(img_buf);
             return NGX_ERROR;
         }
         cln->handler = gdFree;
@@ -246,7 +246,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
 static char *ngx_http_captcha_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     ngx_http_core_loc_conf_t *clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
     clcf->handler = ngx_http_captcha_handler;
-    ngx_conf_set_num_slot(cf, cmd, conf);
+    (char *)ngx_conf_set_num_slot(cf, cmd, conf);
     return NGX_CONF_OK;
 }
 
