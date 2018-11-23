@@ -236,6 +236,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     int size;
     u_char *img_buf = create_captcha_png(r, &size, (char *)code);
+    if (img_buf == NULL) return NGX_ERROR;
     ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, 0);;
     cln = ngx_pool_cleanup_add(r->pool, 0);
     if (cln == NULL) {
