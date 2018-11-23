@@ -16,7 +16,8 @@
 #define CAPTCHA_SECRET "captcha_secret"
 #define CAPTCHA_SIZE 20
 #define CAPTCHA_WIDTH 130
-#define HASHLEN 16 // 0 - 32
+#define MD5_BHASH_LEN 16
+#define MD5_HASH_LEN (MD5_BHASH_LEN * 2)
 
 unsigned seed;
 
@@ -190,6 +191,7 @@ static inline int mt_rand(int min, int max) {
 
 static inline void create_code(char *code, int code_len, char *charset, int charset_len) {
     for (int i=0; i < code_len; i++) code[i] = charset[mt_rand(0, charset_len - 1)];
+    code[code_len] = '\0';
 }
 
 static inline gdImagePtr create_bg(int width, int height) {
@@ -294,29 +296,30 @@ static inline ngx_int_t set_captcha_cookie(ngx_http_request_t *r, char *code) {
     ngx_http_captcha_loc_conf_t *captcha = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
     ngx_md5_t md5;
     ngx_md5_init(&md5);
-    ngx_md5_update(&md5, captcha->secret.data, captcha->secret.len);
-    ngx_md5_update(&md5, code, captcha->length);
+    ngx_md5_update(&md5, (const void *)captcha->secret.data, captcha->secret.len);
+    ngx_md5_update(&md5, (const void *)code, (size_t)captcha->length);
     u_char salt_buf[32];
     size_t salt_buf_len = ngx_sprintf(salt_buf, "%d", ngx_random()) - salt_buf;
-    ngx_md5_update(&md5, salt_buf, salt_buf_len);
-    u_char hash[16];
+    ngx_md5_update(&md5, (const void *)salt_buf, salt_buf_len);
+    u_char hash[MD5_BHASH_LEN];
     ngx_md5_final(hash, &md5);
-    char hash_hex[HASHLEN];
-    md5_make_digest(hash_hex, hash, HASHLEN / 2);
+    char hash_hex[MD5_HASH_LEN];
+    md5_make_digest(hash_hex, hash, MD5_BHASH_LEN);
+//    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "code=%s, hash_hex=%s", code, hash_hex);
     ngx_table_elt_t *set_cookie_hash = ngx_list_push(&r->headers_out.headers);
     ngx_table_elt_t *set_cookie_salt = ngx_list_push(&r->headers_out.headers);
     if (set_cookie_hash == NULL || set_cookie_salt == NULL) return NGX_ERROR;
     /* set_cookie_hash */ {
         set_cookie_hash->hash = 1;
         ngx_str_set(&set_cookie_hash->key, "Set-Cookie");
-        int cookie_buf_len = captcha->hash.len + HASHLEN + 1;
+        int cookie_buf_len = captcha->hash.len + MD5_HASH_LEN + 1;
         set_cookie_hash->value.data = ngx_palloc(r->pool, cookie_buf_len);
         if (set_cookie_hash->value.data == NULL) return NGX_ERROR;
         /*ngx_sprintf(set_cookie_hash->value.data, "%s=%s", ...);*/
         unsigned char *p = set_cookie_hash->value.data;
         p = ngx_cpymem(p, captcha->hash.data, captcha->hash.len);
         *p++ = '=';
-        p = ngx_cpymem(p, hash_hex, HASHLEN);
+        p = ngx_cpymem(p, hash_hex, MD5_HASH_LEN);
         set_cookie_hash->value.len = cookie_buf_len;
     }
     /* set_cookie_salt */ {
@@ -342,7 +345,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     r->headers_out.content_type.len = sizeof("image/png") - 1;
     r->headers_out.content_type.data = (u_char *)"image/png";
     ngx_http_captcha_loc_conf_t *captcha = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    u_char code[CAPTCHA_LENGTH] = {"\0"};
+    u_char code[CAPTCHA_LENGTH+1];// = {"\0"};
     create_code((char *)code, captcha->length, (char *)captcha->charset.data, captcha->charset.len);
     rc = set_captcha_cookie(r, (char *)code);
     if (rc != NGX_OK) return rc;
@@ -359,7 +362,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     ngx_chain_t out = {.buf = b, .next = NULL};
     int len = 0;
-    u_char img_buf[6144] = {"\0"};
+    u_char img_buf[6144];// = {"\0"};
     create_captcha_png(r, (char *)img_buf, &len, (char *)code);
     r->headers_out.content_length_n = len;
     b->pos = (u_char *)img_buf;
@@ -416,14 +419,14 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_str_value(conf->hash, prev->hash, CAPTCHA_HASH);
     ngx_conf_merge_str_value(conf->salt, prev->salt, CAPTCHA_SALT);
     ngx_conf_merge_str_value(conf->secret, prev->secret, CAPTCHA_SECRET);
-    if (conf->width > CAPTCHA_WIDTH) {
+/*    if (conf->width > CAPTCHA_WIDTH) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "width must be less than %d", CAPTCHA_WIDTH);
         return NGX_CONF_ERROR;
     }
     if (conf->height > CAPTCHA_HEIGHT) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "height must be less than %d", CAPTCHA_HEIGHT);
         return NGX_CONF_ERROR;
-    }
+    }*/
     if (conf->size > conf->height) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "size is too large");
         return NGX_CONF_ERROR;
