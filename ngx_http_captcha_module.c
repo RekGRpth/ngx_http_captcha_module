@@ -31,12 +31,6 @@ typedef struct {
     ngx_str_t secret;
 } ngx_http_captcha_loc_conf_t;
 
-typedef struct {
-    char *buffer;
-    size_t size;
-    ngx_pool_t *pool;
-} png_stream_buffer;
-
 static char *ngx_http_captcha_conf(ngx_conf_t *, ngx_command_t *, void *);
 static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child);
