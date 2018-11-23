@@ -145,7 +145,7 @@ static inline void *ngx_prealloc(ngx_pool_t *pool, void *p, size_t old_size, siz
     if (p == NULL) return ngx_palloc(pool, new_size);
     if (new_size == 0) {
         if ((u_char *) p + old_size == pool->d.last) pool->d.last = p;
-        else ngx_pfree(pool, p);
+        else (ngx_int_t)ngx_pfree(pool, p);
         return NULL;
     }
     if ((u_char *) p + old_size == pool->d.last && (u_char *) p + new_size <= pool->d.end) {
@@ -155,7 +155,7 @@ static inline void *ngx_prealloc(ngx_pool_t *pool, void *p, size_t old_size, siz
     new = ngx_palloc(pool, new_size);
     if (new == NULL) return NULL;
     ngx_memcpy(new, p, old_size);
-    ngx_pfree(pool, p);
+    (ngx_int_t)ngx_pfree(pool, p);
     return new;
 }
 
@@ -190,8 +190,8 @@ static inline size_t get_png_stream_buffer(ngx_pool_t *pool, gdImagePtr img, cha
     (void)gdImagePngCtxEx(img, &ctx, -1);
     buf = memcpy(buf, p->buffer, p->size);
     size_t size = p->size;
-    ngx_pfree(pool, p->buffer);//free 3
-    ngx_pfree(pool, p);//free 1
+    (ngx_int_t)ngx_pfree(pool, p->buffer);//free 3
+    (ngx_int_t)ngx_pfree(pool, p);//free 1
     return size;
 }
 
@@ -296,11 +296,9 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
 }
 
 static char *ngx_http_captcha_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
-//    ngx_http_captcha_loc_conf_t *cplcf = conf;
     ngx_http_core_loc_conf_t *clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
     clcf->handler = ngx_http_captcha_handler;
     ngx_conf_set_num_slot(cf, cmd, conf);
-//    cplcf->enable = 1;
     return NGX_CONF_OK;
 }
 
