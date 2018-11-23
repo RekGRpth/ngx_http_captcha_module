@@ -150,14 +150,6 @@ ngx_module_t ngx_http_captcha_module = {
     NGX_MODULE_V1_PADDING
 };
 
-static inline void md5_make_digest(char *md5str, const unsigned char *digest, int len) {
-    static const char hexits[17] = "0123456789abcdef";
-    for (int i = 0; i < len; i++) {
-        md5str[i * 2]       = hexits[digest[i] >> 4];
-        md5str[(i * 2) + 1] = hexits[digest[i] & 0x0F];
-    }
-}
-
 static inline void *ngx_prealloc(ngx_pool_t *pool, void *p, size_t old_size, size_t new_size) {
     void *new;
     if (p == NULL) {
@@ -195,11 +187,9 @@ static inline void create_code(char *code, int code_len, char *charset, int char
 }
 
 static inline gdImagePtr create_bg(int width, int height) {
-    gdImagePtr img;
-    int color;
-    img = gdImageCreateTrueColor(width, height);
-    color = gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255));
-    gdImageFilledRectangle(img,0,height,width,0,color);
+    gdImagePtr img = gdImageCreateTrueColor(width, height);;
+    int color = gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255));
+    gdImageFilledRectangle(img, 0, height, width, 0, color);
     return img;
 }
 
@@ -216,7 +206,7 @@ static inline void create_font(gdImagePtr img, char *code, int len, int width, i
     for (i=0; i<len; i++)     {
         memcpy(str, code++, 1);
         font_color = gdImageColorAllocate(img,mt_rand(0, 156),mt_rand(0, 156),mt_rand(0, 156));
-        gd_image_TTF_text(img,size,mt_rand(-30, 30),x*i+mt_rand(1,5),height/1.4,font_color,font,str);
+        gd_image_TTF_text(img, size, mt_rand(-30, 30), x * i + mt_rand(1, 5), height / 1.4, font_color, font, str);
     }
 }
 
@@ -227,12 +217,12 @@ static inline void create_line(gdImagePtr img, int width, int height, char *font
     int font_size = 8;
     int angle = 0;
     for (i=0;i<6;i++) {
-        color = gdImageColorAllocate(img,mt_rand(0,156),mt_rand(0,156),mt_rand(0,156));
-        gdImageLine(img,mt_rand(0,width),mt_rand(0,height),mt_rand(0,width),mt_rand(0,height),color);
+        color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
+        gdImageLine(img, mt_rand(0, width), mt_rand(0, height), mt_rand(0, width), mt_rand(0, height), color);
     }
     for (i=0;i<100;i++) {
-        color = gdImageColorAllocate(img,mt_rand(200,255),mt_rand(200,255),mt_rand(200,255));
-        gdImageStringFT(img, brect, color, font, font_size, angle, mt_rand(0,width), mt_rand(0,height), (char *)str);
+        color = gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255));
+        gdImageStringFT(img, brect, color, font, font_size, angle, mt_rand(0, width), mt_rand(0, height), (char *)str);
     }
 }
 
@@ -301,11 +291,10 @@ static inline ngx_int_t set_captcha_cookie(ngx_http_request_t *r, char *code) {
     u_char salt_buf[32];
     size_t salt_buf_len = ngx_sprintf(salt_buf, "%d", ngx_random()) - salt_buf;
     ngx_md5_update(&md5, (const void *)salt_buf, salt_buf_len);
-    u_char hash[MD5_BHASH_LEN];
-    ngx_md5_final(hash, &md5);
-    char hash_hex[MD5_HASH_LEN];
-    md5_make_digest(hash_hex, hash, MD5_BHASH_LEN);
-//    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "code=%s, hash_hex=%s", code, hash_hex);
+    u_char bhash[MD5_BHASH_LEN];
+    ngx_md5_final(bhash, &md5);
+    u_char hash[MD5_HASH_LEN];
+    ngx_hex_dump(hash, bhash, MD5_BHASH_LEN);
     ngx_table_elt_t *set_cookie_hash = ngx_list_push(&r->headers_out.headers);
     ngx_table_elt_t *set_cookie_salt = ngx_list_push(&r->headers_out.headers);
     if (set_cookie_hash == NULL || set_cookie_salt == NULL) return NGX_ERROR;
@@ -319,7 +308,7 @@ static inline ngx_int_t set_captcha_cookie(ngx_http_request_t *r, char *code) {
         unsigned char *p = set_cookie_hash->value.data;
         p = ngx_cpymem(p, captcha->hash.data, captcha->hash.len);
         *p++ = '=';
-        p = ngx_cpymem(p, hash_hex, MD5_HASH_LEN);
+        p = ngx_cpymem(p, hash, MD5_HASH_LEN);
         set_cookie_hash->value.len = cookie_buf_len;
     }
     /* set_cookie_salt */ {
