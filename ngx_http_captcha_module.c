@@ -14,11 +14,13 @@
 #define CAPTCHA_SECRET "captcha_secret"
 #define CAPTCHA_SIZE 20
 #define CAPTCHA_WIDTH 130
+#define CAPTCHA_LINE 6
+#define CAPTCHA_STAR 100
 #define MD5_BHASH_LEN 16
 #define MD5_HASH_LEN (MD5_BHASH_LEN * 2)
 
 typedef struct {
-    ngx_flag_t enable;
+//    ngx_flag_t enable;
     ngx_uint_t height;
     ngx_uint_t length;
     ngx_uint_t size;
@@ -140,15 +142,10 @@ ngx_module_t ngx_http_captcha_module = {
 
 static inline void *ngx_prealloc(ngx_pool_t *pool, void *p, size_t old_size, size_t new_size) {
     void *new;
-    if (p == NULL) {
-        return ngx_palloc(pool, new_size);
-    }
+    if (p == NULL) return ngx_palloc(pool, new_size);
     if (new_size == 0) {
-        if ((u_char *) p + old_size == pool->d.last) {
-           pool->d.last = p;
-        } else {
-           ngx_pfree(pool, p);
-        }
+        if ((u_char *) p + old_size == pool->d.last) pool->d.last = p;
+        else ngx_pfree(pool, p);
         return NULL;
     }
     if ((u_char *) p + old_size == pool->d.last && (u_char *) p + new_size <= pool->d.end) {
@@ -156,9 +153,7 @@ static inline void *ngx_prealloc(ngx_pool_t *pool, void *p, size_t old_size, siz
         return p;
     }
     new = ngx_palloc(pool, new_size);
-    if (new == NULL) {
-        return NULL;
-    }
+    if (new == NULL) return NULL;
     ngx_memcpy(new, p, old_size);
     ngx_pfree(pool, p);
     return new;
@@ -197,7 +192,6 @@ static inline void freeCtx(ngx_pool_t *pool, gdIOCtx *ctx) {
 }
 
 static inline void get_png_stream_buffer(ngx_pool_t *pool, gdImagePtr img, char *buf, int *len) {
-    int q = -1;
     gdIOCtx *ctx;
     png_stream_buffer *p;
     ctx = (gdIOCtx *)ngx_pcalloc(pool, sizeof(gdIOCtx));//alloc 2
@@ -207,7 +201,7 @@ static inline void get_png_stream_buffer(ngx_pool_t *pool, gdImagePtr img, char 
     p = (png_stream_buffer *)ngx_pcalloc(pool, sizeof(png_stream_buffer));//alloc 3
     p->pool = pool;
     ctx->data = p;
-    gdImagePngCtxEx(img, ctx, q);
+    (void)gdImagePngCtxEx(img, ctx, -1);
     p = (png_stream_buffer *)ctx->data;
     buf = memcpy(buf, p->buffer, p->size);
     *len = p->size;
@@ -217,24 +211,20 @@ static inline void get_png_stream_buffer(ngx_pool_t *pool, gdImagePtr img, char 
 static inline void create_captcha_png(ngx_http_request_t *r, char *buf, int *len, char *code) {
     ngx_http_captcha_loc_conf_t *captcha = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
     gdImagePtr img = gdImageCreateTrueColor(captcha->width, captcha->height);
-    int color = gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255));
-    gdImageFilledRectangle(img, 0, captcha->height, captcha->width, 0, color);
-    char str[2] = "\0";
+    (void)gdImageFilledRectangle(img, 0, captcha->height, captcha->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
     for (int i = 0, brect[8], x = captcha->width / captcha->length; i < (int)captcha->length; i++)     {
+        char str[2] = "\0";
         memcpy(str, code++, 1);
-        int color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
-        gdImageStringFT(img, brect, color, (char *)captcha->font.data, captcha->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), captcha->height / 1.4, str);
+        (char *)gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)captcha->font.data, captcha->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), captcha->height / 1.4, str);
     }
-    for (int i = 0; i < 6; i++) {
-        int color = gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156));
-        gdImageLine(img, mt_rand(0, captcha->width), mt_rand(0, captcha->height), mt_rand(0, captcha->width), mt_rand(0, captcha->height), color);
+    for (int i = 0; i < CAPTCHA_LINE; i++) {
+        (void)gdImageLine(img, mt_rand(0, captcha->width), mt_rand(0, captcha->height), mt_rand(0, captcha->width), mt_rand(0, captcha->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
     }
-    for (int i = 0, brect[8]; i < 100; i++) {
-        int color = gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255));
-        gdImageStringFT(img, brect, color, (char *)captcha->font.data, 8, 0, mt_rand(0, captcha->width), mt_rand(0, captcha->height), "*");
+    for (int i = 0, brect[8]; i < CAPTCHA_STAR; i++) {
+        (char *)gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)captcha->font.data, 8, 0, mt_rand(0, captcha->width), mt_rand(0, captcha->height), "*");
     }
     get_png_stream_buffer(r->pool, img, buf, len);
-    gdImageDestroy(img);
+    (void)gdImageDestroy(img);
 }
 
 static inline ngx_int_t set_captcha_cookie(ngx_http_request_t *r, char *code) {
@@ -319,11 +309,11 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
 }
 
 static char *ngx_http_captcha_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
-    ngx_http_captcha_loc_conf_t *cplcf = conf;
+//    ngx_http_captcha_loc_conf_t *cplcf = conf;
     ngx_http_core_loc_conf_t *clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
     clcf->handler = ngx_http_captcha_handler;
     ngx_conf_set_num_slot(cf, cmd, conf);
-    cplcf->enable = 1;
+//    cplcf->enable = 1;
     return NGX_CONF_OK;
 }
 
@@ -344,14 +334,14 @@ static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
     conf->salt.len = 0;
     conf->secret.data = NULL;
     conf->secret.len = 0;
-    conf->enable = NGX_CONF_UNSET;
+//    conf->enable = NGX_CONF_UNSET;
     return conf;
 }
 
 static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child) {
     ngx_http_captcha_loc_conf_t *prev = parent;
     ngx_http_captcha_loc_conf_t *conf = child;
-    ngx_conf_merge_value(conf->enable, prev->enable, 0);
+//    ngx_conf_merge_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_uint_value(conf->height, prev->height, CAPTCHA_HEIGHT);
     ngx_conf_merge_uint_value(conf->length, prev->length, CAPTCHA_LENGTH);
     ngx_conf_merge_uint_value(conf->size, prev->size, CAPTCHA_SIZE);
