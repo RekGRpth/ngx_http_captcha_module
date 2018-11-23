@@ -164,10 +164,6 @@ static inline u_char *create_captcha_png(ngx_http_request_t *r, int *size, char 
         (char *)gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)captcha->font.data, 8, 0, mt_rand(0, captcha->width), mt_rand(0, captcha->height), "*");
     }
     u_char *out = (u_char *)gdImagePngPtrEx(img, size, -1);
-    if (out == NULL) {
-        *size = 0;
-        return NULL;
-    }
     (void)gdImageDestroy(img);
     return out;
 }
@@ -236,15 +232,16 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     int size;
     u_char *img_buf = create_captcha_png(r, &size, (char *)code);
-    if (img_buf == NULL) return NGX_ERROR;
-    ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, 0);;
-    cln = ngx_pool_cleanup_add(r->pool, 0);
-    if (cln == NULL) {
-        gdFree(img_buf);
-        return NGX_ERROR;
+    if (img_buf == NULL) size = 0; else {
+        ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, 0);;
+        cln = ngx_pool_cleanup_add(r->pool, 0);
+        if (cln == NULL) {
+            gdFree(img_buf);
+            return NGX_ERROR;
+        }
+        cln->handler = gdFree;
+        cln->data = img_buf;
     }
-    cln->handler = gdFree;
-    cln->data = img_buf;
     ngx_buf_t b = {.pos = (u_char *)img_buf, .last = (u_char *)img_buf + size, .memory = 1, .last_buf = 1};
     ngx_chain_t out = {.buf = &b, .next = NULL};
     r->headers_out.content_length_n = size;
