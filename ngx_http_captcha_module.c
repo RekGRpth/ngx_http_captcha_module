@@ -8,7 +8,7 @@
 #define M_PI 3.14159265358979323846
 #define CAPTCHA_CHARSET "abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789"
 #define CAPTCHA_LENGTH 4
-#define CAPTCHA_EXPIRE 3600
+//#define CAPTCHA_EXPIRE 3600
 #define CAPTCHA_FONT "/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf"
 #define CAPTCHA_HASH "captcha_hash"
 #define CAPTCHA_HEIGHT 30
@@ -22,7 +22,7 @@ unsigned seed;
 
 typedef struct {
     ngx_flag_t enable;
-    ngx_uint_t expire;
+//    ngx_uint_t expire;
     ngx_uint_t height;
     ngx_uint_t length;
     ngx_uint_t size;
@@ -52,13 +52,13 @@ static ngx_command_t ngx_http_captcha_commands[] = {{
     0,
     NULL
 }, {
-    ngx_string("captcha_expire"),
+/*    ngx_string("captcha_expire"),
     NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_num_slot,
     NGX_HTTP_LOC_CONF_OFFSET,
     offsetof(ngx_http_captcha_loc_conf_t, expire),
     NULL
-}, {
+}, {*/
     ngx_string("captcha_height"),
     NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_num_slot,
@@ -282,9 +282,8 @@ static inline void get_png_stream_buffer(ngx_pool_t *pool, gdImagePtr img, char 
 
 static inline void create_captcha_png(ngx_http_request_t *r, char *buf, int *len, char *code) {
     ngx_http_captcha_loc_conf_t *captcha = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    gdImagePtr img;
     seed = (unsigned int)time(NULL);
-    img = create_bg(captcha->width, captcha->height);
+    gdImagePtr img = create_bg(captcha->width, captcha->height);
     create_font(img, code, captcha->length, captcha->width, captcha->height, (char *)captcha->font.data, captcha->size);
     create_line(img, captcha->width, captcha->height, (char *)captcha->font.data);
     get_png_stream_buffer(r->pool, img, buf, len);
@@ -387,7 +386,7 @@ static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
     conf->width = NGX_CONF_UNSET_UINT;
     conf->height = NGX_CONF_UNSET_UINT;
     conf->length = NGX_CONF_UNSET_UINT;
-    conf->expire = NGX_CONF_UNSET_UINT;
+//    conf->expire = NGX_CONF_UNSET_UINT;
     conf->size = NGX_CONF_UNSET_UINT;
     conf->font.data = NULL;
     conf->font.len = 0;
@@ -407,7 +406,7 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_http_captcha_loc_conf_t *prev = parent;
     ngx_http_captcha_loc_conf_t *conf = child;
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
-    ngx_conf_merge_uint_value(conf->expire, prev->expire, CAPTCHA_EXPIRE);
+//    ngx_conf_merge_uint_value(conf->expire, prev->expire, CAPTCHA_EXPIRE);
     ngx_conf_merge_uint_value(conf->height, prev->height, CAPTCHA_HEIGHT);
     ngx_conf_merge_uint_value(conf->length, prev->length, CAPTCHA_LENGTH);
     ngx_conf_merge_uint_value(conf->size, prev->size, CAPTCHA_SIZE);
