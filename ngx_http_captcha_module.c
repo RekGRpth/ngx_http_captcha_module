@@ -235,19 +235,11 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
         rc = ngx_http_send_header(r);
         if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) return rc;
     }
-    ngx_buf_t *b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
-    if (b == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Failed to allocate response buffer.");
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    ngx_chain_t out = {.buf = b, .next = NULL};
     int size;
     u_char *img_buf = create_captcha_png(r, &size, (char *)code);
+    ngx_buf_t b = {.pos = (u_char *)img_buf, .last = (u_char *)img_buf + size, .memory = 1, .last_buf = 1};
+    ngx_chain_t out = {.buf = &b, .next = NULL};
     r->headers_out.content_length_n = size;
-    b->pos = (u_char *)img_buf;
-    b->last = (u_char *)img_buf + size;
-    b->memory = 1;
-    b->last_buf = 1;
     rc = ngx_http_send_header(r);
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) return rc;
     return ngx_http_output_filter(r, &out);
