@@ -7,7 +7,7 @@
 #define M_PI 3.14159265358979323846
 #define CAPTCHA_CHARSET "abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789"
 #define CAPTCHA_LENGTH 4
-#define CAPTCHA_FONT "/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf"
+#define CAPTCHA_FONT "/usr/share/fonts/ttf-liberation/LiberationSans-Regular.ttf"
 #define CAPTCHA_HASH "captcha_hash"
 #define CAPTCHA_HEIGHT 30
 #define CAPTCHA_SALT "captcha_salt"
