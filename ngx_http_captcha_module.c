@@ -236,6 +236,14 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     int size;
     u_char *img_buf = create_captcha_png(r, &size, (char *)code);
+    ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, 0);;
+    cln = ngx_pool_cleanup_add(r->pool, 0);
+    if (cln == NULL) {
+        gdFree(img_buf);
+        return NGX_ERROR;
+    }
+    cln->handler = gdFree;
+    cln->data = img_buf;
     ngx_buf_t b = {.pos = (u_char *)img_buf, .last = (u_char *)img_buf + size, .memory = 1, .last_buf = 1};
     ngx_chain_t out = {.buf = &b, .next = NULL};
     r->headers_out.content_length_n = size;
