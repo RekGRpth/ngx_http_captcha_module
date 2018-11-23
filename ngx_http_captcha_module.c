@@ -168,9 +168,9 @@ static inline void create_code(char *code, int code_len, char *charset, int char
     code[code_len] = '\0';
 }
 
-static inline void _image_output_putc(struct gdIOCtx *ctx, int c) { }
+static inline void putC(struct gdIOCtx *ctx, int c) { }
 
-static inline int _image_output_putbuf(struct gdIOCtx *ctx, const void* buf, int len) {
+static inline int putBuf(struct gdIOCtx *ctx, const void* buf, int len) {
     png_stream_buffer *p = (png_stream_buffer *)ctx->data;
     size_t nsize = p->size + len;
     if (p->buffer) p->buffer = ngx_prealloc(p->pool, p->buffer, p->size, nsize);
@@ -181,34 +181,21 @@ static inline int _image_output_putbuf(struct gdIOCtx *ctx, const void* buf, int
     return 0;
 }
 
-static inline void _image_output_ctxfree(struct gdIOCtx *ctx) { }
+static inline void gd_free(struct gdIOCtx *ctx) { }
 
-static inline void freeCtx(ngx_pool_t *pool, gdIOCtx *ctx) {
-    png_stream_buffer *p = (png_stream_buffer *)ctx->data;
-    ngx_pfree(pool, p->buffer);//free 3
-    ngx_pfree(pool, ctx->data);//free 1
-    //ctx->gd_free(ctx);
-    ngx_pfree(pool, ctx);//free 2
-}
-
-static inline void get_png_stream_buffer(ngx_pool_t *pool, gdImagePtr img, char *buf, int *len) {
-    gdIOCtx *ctx;
-    png_stream_buffer *p;
-    ctx = (gdIOCtx *)ngx_pcalloc(pool, sizeof(gdIOCtx));//alloc 2
-    ctx->putC = _image_output_putc;
-    ctx->putBuf = _image_output_putbuf;
-    ctx->gd_free = _image_output_ctxfree;
-    p = (png_stream_buffer *)ngx_pcalloc(pool, sizeof(png_stream_buffer));//alloc 3
+static inline size_t get_png_stream_buffer(ngx_pool_t *pool, gdImagePtr img, char *buf) {
+    png_stream_buffer *p = (png_stream_buffer *)ngx_pcalloc(pool, sizeof(png_stream_buffer));//alloc 3
     p->pool = pool;
-    ctx->data = p;
-    (void)gdImagePngCtxEx(img, ctx, -1);
-    p = (png_stream_buffer *)ctx->data;
+    gdIOCtx ctx = {.putC = putC, .putBuf = putBuf, .gd_free = gd_free, .data = p};
+    (void)gdImagePngCtxEx(img, &ctx, -1);
     buf = memcpy(buf, p->buffer, p->size);
-    *len = p->size;
-    freeCtx(pool, ctx);
+    size_t size = p->size;
+    ngx_pfree(pool, p->buffer);//free 3
+    ngx_pfree(pool, p);//free 1
+    return size;
 }
 
-static inline void create_captcha_png(ngx_http_request_t *r, char *buf, int *len, char *code) {
+static inline size_t create_captcha_png(ngx_http_request_t *r, char *buf, char *code) {
     ngx_http_captcha_loc_conf_t *captcha = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
     gdImagePtr img = gdImageCreateTrueColor(captcha->width, captcha->height);
     (void)gdImageFilledRectangle(img, 0, captcha->height, captcha->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
@@ -223,8 +210,9 @@ static inline void create_captcha_png(ngx_http_request_t *r, char *buf, int *len
     for (int i = 0, brect[8]; i < CAPTCHA_STAR; i++) {
         (char *)gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)captcha->font.data, 8, 0, mt_rand(0, captcha->width), mt_rand(0, captcha->height), "*");
     }
-    get_png_stream_buffer(r->pool, img, buf, len);
+    size_t size = get_png_stream_buffer(r->pool, img, buf);
     (void)gdImageDestroy(img);
+    return size;
 }
 
 static inline ngx_int_t set_captcha_cookie(ngx_http_request_t *r, char *code) {
@@ -295,12 +283,11 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_chain_t out = {.buf = b, .next = NULL};
-    int len = 0;
     u_char img_buf[6144];// = {"\0"};
-    create_captcha_png(r, (char *)img_buf, &len, (char *)code);
-    r->headers_out.content_length_n = len;
+    size_t size = create_captcha_png(r, (char *)img_buf, (char *)code);
+    r->headers_out.content_length_n = size;
     b->pos = (u_char *)img_buf;
-    b->last = (u_char *)img_buf + len;
+    b->last = (u_char *)img_buf + size;
     b->memory = 1;
     b->last_buf = 1;
     rc = ngx_http_send_header(r);
