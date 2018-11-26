@@ -8,6 +8,7 @@
 #define CAPTCHA_CHARSET "abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789"
 #define CAPTCHA_CSRF "csrf"
 #define CAPTCHA_LENGTH 4
+#define CAPTCHA_EXPIRE 3600
 #define CAPTCHA_FONT "/usr/share/fonts/ttf-liberation/LiberationSans-Regular.ttf"
 #define CAPTCHA_NAME "captcha"
 #define CAPTCHA_HEIGHT 30
@@ -21,6 +22,7 @@
 
 typedef struct {
     ngx_flag_t icase;
+    ngx_uint_t expire;
     ngx_uint_t height;
     ngx_uint_t length;
     ngx_uint_t size;
@@ -49,6 +51,13 @@ static ngx_command_t ngx_http_captcha_commands[] = {{
     ngx_conf_set_flag_slot,
     NGX_HTTP_LOC_CONF_OFFSET,
     offsetof(ngx_http_captcha_loc_conf_t, icase),
+    NULL
+}, {
+    ngx_string("captcha_expire"),
+    NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+    ngx_conf_set_num_slot,
+    NGX_HTTP_LOC_CONF_OFFSET,
+    offsetof(ngx_http_captcha_loc_conf_t, expire),
     NULL
 }, {
     ngx_string("captcha_height"),
@@ -196,15 +205,17 @@ static inline ngx_int_t set_captcha_cookie(ngx_http_request_t *r, u_char *code) 
     (void)ngx_md5_update(&md5, (const void *)csrf->data, csrf->len);
     u_char bhash[MD5_BHASH_LEN];
     (void)ngx_md5_final(bhash, &md5);
-    u_char hash[MD5_HASH_LEN];
+    u_char hash[MD5_HASH_LEN + 1];
     (u_char *)ngx_hex_dump(hash, bhash, MD5_BHASH_LEN);
+    hash[MD5_HASH_LEN] = '\0';
     ngx_table_elt_t *set_cookie_name = ngx_list_push(&r->headers_out.headers);
     if (set_cookie_name == NULL) return NGX_ERROR;
     set_cookie_name->hash = 1;
     ngx_str_set(&set_cookie_name->key, "Set-Cookie");
-    set_cookie_name->value.data = ngx_palloc(r->pool, captcha->name.len + MD5_HASH_LEN + 1);
+    set_cookie_name->value.data = ngx_palloc(r->pool, captcha->name.len + MD5_HASH_LEN + sizeof("; expires=") + 40);
     if (set_cookie_name->value.data == NULL) return NGX_ERROR;
-    set_cookie_name->value.len = ngx_sprintf(set_cookie_name->value.data, "%s=%s", captcha->name.data, hash) - set_cookie_name->value.data;
+    set_cookie_name->value.len = ngx_sprintf(set_cookie_name->value.data, "%s=%s; expires=", captcha->name.data, hash) - set_cookie_name->value.data;
+    set_cookie_name->value.len += ngx_http_cookie_time(set_cookie_name->value.data + captcha->name.len + MD5_HASH_LEN + sizeof("; expires="), ngx_time() + captcha->expire) - (set_cookie_name->value.data + captcha->name.len + MD5_HASH_LEN + sizeof("; expires="));
     return NGX_OK;
 }
 
@@ -255,16 +266,17 @@ static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
     ngx_http_captcha_loc_conf_t *conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_captcha_loc_conf_t));
     if (conf == NULL) return NGX_CONF_ERROR;
     conf->icase = NGX_CONF_UNSET;
-    conf->width = NGX_CONF_UNSET_UINT;
+    conf->expire = NGX_CONF_UNSET_UINT;
     conf->height = NGX_CONF_UNSET_UINT;
     conf->length = NGX_CONF_UNSET_UINT;
     conf->size = NGX_CONF_UNSET_UINT;
-    conf->font.data = NULL;
-    conf->font.len = 0;
+    conf->width = NGX_CONF_UNSET_UINT;
     conf->charset.data = NULL;
     conf->charset.len = 0;
     conf->csrf.data = NULL;
     conf->csrf.len = 0;
+    conf->font.data = NULL;
+    conf->font.len = 0;
     conf->name.data = NULL;
     conf->name.len = 0;
     conf->secret.data = NULL;
@@ -276,6 +288,7 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_http_captcha_loc_conf_t *prev = parent;
     ngx_http_captcha_loc_conf_t *conf = child;
     ngx_conf_merge_value(conf->icase, prev->icase, 0);
+    ngx_conf_merge_uint_value(conf->expire, prev->expire, CAPTCHA_EXPIRE);
     ngx_conf_merge_uint_value(conf->height, prev->height, CAPTCHA_HEIGHT);
     ngx_conf_merge_uint_value(conf->length, prev->length, CAPTCHA_LENGTH);
     ngx_conf_merge_uint_value(conf->size, prev->size, CAPTCHA_SIZE);
