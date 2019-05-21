@@ -27,7 +27,7 @@ server {
         add_header Pragma no-cache;
         capture_response_body off;
         default_type "text/html; charset=utf-8";
-        template cas/login.html.ct2;
+        template login.html.ct2;
         if ($request_method = GET) {
             add_header Set-Cookie "auth='';Path=/;Max-Age=0;Secure;Discard;";
             ctpp2 on;
@@ -80,7 +80,7 @@ server {
 server {
     listen 127.0.0.1:443;
     set_real_ip_from 127.0.0.1;
-    auth_basic_user_file html/cas/.htaccess;
+    auth_basic_user_file html/.htaccess;
     auth_ldap_servers ad;
     location =/basic {
         auth_basic "auth";
