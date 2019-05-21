@@ -1,5 +1,5 @@
 # auth
-```conf
+```nginx
 server {
     listen 80;
     server_name server.name.com;
@@ -8,6 +8,8 @@ server {
 server {
     listen 443 ssl;
     server_name server.name.com;
+    ssl_certificate /etc/nginx/ssl/ssl.crt;
+    ssl_certificate_key /etc/nginx/ssl/ssl.key;
     encrypted_session_key "012345abcdefghijklmnopqrstuvwxyz";
     encrypted_session_expires 30d;
     auth_request /auth;
