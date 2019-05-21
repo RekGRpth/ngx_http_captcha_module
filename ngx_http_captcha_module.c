@@ -10,7 +10,7 @@
 #define CAPTCHA_LENGTH 4
 #define CAPTCHA_EXPIRE 3600
 #define CAPTCHA_FONT "/usr/share/fonts/ttf-liberation/LiberationSans-Regular.ttf"
-#define CAPTCHA_NAME "captcha"
+#define CAPTCHA_NAME "Captcha"
 #define CAPTCHA_HEIGHT 30
 #define CAPTCHA_SECRET "secret"
 #define CAPTCHA_SIZE 20
@@ -212,10 +212,11 @@ static inline ngx_int_t set_captcha_cookie(ngx_http_request_t *r, u_char *code) 
     if (set_cookie_name == NULL) return NGX_ERROR;
     set_cookie_name->hash = 1;
     ngx_str_set(&set_cookie_name->key, "Set-Cookie");
-    set_cookie_name->value.data = ngx_palloc(r->pool, captcha->name.len + MD5_HASH_LEN + sizeof("; expires=") + 40);
+    ngx_uint_t len = captcha->name.len + MD5_HASH_LEN + (sizeof("%s=%s; Max-Age=%i") - 1) - 1 - 1 - 1;
+    for (ngx_uint_t number = captcha->expire; number /= 10; len++);
+    set_cookie_name->value.data = ngx_palloc(r->pool, len);
     if (set_cookie_name->value.data == NULL) return NGX_ERROR;
-    set_cookie_name->value.len = ngx_sprintf(set_cookie_name->value.data, "%s=%s; expires=", captcha->name.data, hash) - set_cookie_name->value.data;
-    set_cookie_name->value.len += ngx_http_cookie_time(set_cookie_name->value.data + captcha->name.len + MD5_HASH_LEN + sizeof("; expires="), ngx_time() + captcha->expire) - (set_cookie_name->value.data + captcha->name.len + MD5_HASH_LEN + sizeof("; expires="));
+    set_cookie_name->value.len = ngx_sprintf(set_cookie_name->value.data, "%s=%s; Max-Age=%i", captcha->name.data, hash, captcha->expire) - set_cookie_name->value.data;
     return NGX_OK;
 }
 
