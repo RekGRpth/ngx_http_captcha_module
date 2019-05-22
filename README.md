@@ -41,18 +41,23 @@ server {
     }
     location @login_POST {
         auth_request off;
-        set_form_input $captcha;
-        set_unescape_uri $captcha_unescape $captcha;
+        set_form_input $csrf_form csrf;
+        set_unescape_uri $csrf_unescape $csrf_form;
         set_decode_base64 $csrf_decode $cookie_csrf;
         set_decrypt_session $csrf_decrypt $csrf_decode;
+        if ($csrf_decrypt != $csrf_unescape) {
+            rewrite ^ $scheme://$server_name:$server_port$request_uri redirect;
+        }
+        set_form_input $captcha_form captcha;
+        set_unescape_uri $captcha_unescape $captcha_form;
         set_md5 $captcha_md5 "secret${captcha_unescape}${csrf_decrypt}";
         if ($captcha_md5 != $cookie_captcha) {
             rewrite ^ $scheme://$server_name:$server_port$request_uri redirect;
         }
-        set_form_input $username;
-        set_form_input $password;
-        set_unescape_uri $username_unescape $username;
-        set_unescape_uri $password_unescape $password;
+        set_form_input $username_form username;
+        set_form_input $password_form password;
+        set_unescape_uri $username_unescape $username_form;
+        set_unescape_uri $password_unescape $password_form;
         set_encrypt_session $auth_encrypt "$username_unescape:$password_unescape";
         set_encode_base64 $auth_encode $auth_encrypt;
         add_header Set-Cookie "Auth=$auth_encode; Max-Age=2592000";
