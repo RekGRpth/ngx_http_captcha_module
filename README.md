@@ -11,7 +11,6 @@ server {
     ssl_certificate /etc/nginx/ssl/ssl.crt;
     ssl_certificate_key /etc/nginx/ssl/ssl.key;
     encrypted_session_key "abcdefghijklmnopqrstuvwxyz123456";
-    encrypted_session_expires 30d;
     auth_request /auth;
     set_escape_uri $request_uri_escape $request_uri;
     error_page 401 =303 $scheme://$server_name:$server_port/login?request_uri=$request_uri_escape;
@@ -30,10 +29,9 @@ server {
         auth_request off;
         default_type "text/html; charset=utf-8";
         template login.html.ct2;
-        add_header Set-Cookie "Auth=; Max-Age=0";
         ctpp2 on;
         set_secure_random_alphanum $csrf_random 32;
-        encrypted_session_expires 1h;
+        encrypted_session_expires 3600;
         set_encrypt_session $csrf_encrypt $csrf_random;
         set_encode_base64 $csrf_encode $csrf_encrypt;
         add_header Set-Cookie "CSRF=$csrf_encode; Max-Age=3600";
@@ -46,18 +44,19 @@ server {
         set_decode_base64 $csrf_decode $cookie_csrf;
         set_decrypt_session $csrf_decrypt $csrf_decode;
         if ($csrf_decrypt != $csrf_unescape) {
-            rewrite ^ $scheme://$server_name:$server_port$request_uri redirect;
+            return 303 $request_uri;
         }
         set_form_input $captcha_form captcha;
         set_unescape_uri $captcha_unescape $captcha_form;
         set_md5 $captcha_md5 "secret${captcha_unescape}${csrf_decrypt}";
         if ($captcha_md5 != $cookie_captcha) {
-            rewrite ^ $scheme://$server_name:$server_port$request_uri redirect;
+            return 303 $request_uri;
         }
         set_form_input $username_form username;
         set_form_input $password_form password;
         set_unescape_uri $username_unescape $username_form;
         set_unescape_uri $password_unescape $password_form;
+        encrypted_session_expires 2592000;
         set_encrypt_session $auth_encrypt "$username_unescape:$password_unescape";
         set_encode_base64 $auth_encode $auth_encrypt;
         add_header Set-Cookie "Auth=$auth_encode; Max-Age=2592000";
