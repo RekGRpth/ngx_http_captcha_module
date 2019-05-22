@@ -69,7 +69,6 @@ server {
     }
     location =/auth {
         internal;
-        if ($cookie_auth = "") { return 401 BAD; }
         set_decode_base64 $auth_decode $cookie_auth;
         set_decrypt_session $auth_decrypt $auth_decode;
         if ($auth_decrypt = "") { return 401 BAD; }
