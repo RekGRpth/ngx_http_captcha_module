@@ -10,7 +10,7 @@ server {
     server_name server.name.com;
     ssl_certificate /etc/nginx/ssl/ssl.crt;
     ssl_certificate_key /etc/nginx/ssl/ssl.key;
-    encrypted_session_key "012345abcdefghijklmnopqrstuvwxyz";
+    encrypted_session_key "abcdefghijklmnopqrstuvwxyz123456";
     encrypted_session_expires 30d;
     auth_request /auth;
     set_escape_uri $request_uri_escape $request_uri;
@@ -66,16 +66,21 @@ server {
     }
     location =/auth {
         internal;
+        if ($cookie_auth = "") {
+            return 401 BAD;
+        }
         set_decode_base64 $auth_decode $cookie_auth;
         set_decrypt_session $auth_decrypt $auth_decode;
+        if ($auth_decrypt = "") {
+            return 401 BAD;
+        }
         set_encode_base64 $auth_encode $auth_decrypt;
         more_set_input_headers "Authorization: Basic $auth_encode";
         proxy_http_version 1.1;
         proxy_set_header Authorization "Basic $auth_encode";
-        proxy_set_header Content-Length "";
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_pass_request_body off;
         proxy_cache all;
+        proxy_cache_key $auth_encode;
         proxy_cache_valid 30d;
         proxy_pass http://localhost/basic?$auth_encode;
 #        proxy_pass http://localhost/ldap?$auth_encode;
@@ -92,6 +97,7 @@ server {
     set_real_ip_from localhost;
     auth_basic_user_file html/.htaccess;
     auth_ldap_servers ad;
+    more_clear_input_headers Cookie;
     location =/basic {
         auth_basic "auth";
         echo -n OK;
