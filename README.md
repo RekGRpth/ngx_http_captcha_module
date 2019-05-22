@@ -12,9 +12,12 @@ server {
     ssl_certificate_key /etc/nginx/ssl/ssl.key;
     encrypted_session_key "abcdefghijklmnopqrstuvwxyz123456";
     auth_request /auth;
-    set_escape_uri $request_uri_escape $request_uri;
-    error_page 401 =303 $scheme://$server_name:$server_port/login?request_uri=$request_uri_escape;
+    error_page 401 = @error401;
     more_clear_input_headers Authorization;
+    location @error401 {
+        set_escape_uri $request_uri_escape $request_uri;
+        return 303 /login?request_uri=$request_uri_escape;
+    }
     location / {
         alias html/$remote_user/;
     }
@@ -43,15 +46,11 @@ server {
         set_unescape_uri $csrf_unescape $csrf_form;
         set_decode_base64 $csrf_decode $cookie_csrf;
         set_decrypt_session $csrf_decrypt $csrf_decode;
-        if ($csrf_decrypt != $csrf_unescape) {
-            return 303 $request_uri;
-        }
+        if ($csrf_decrypt != $csrf_unescape) { return 303 $request_uri; }
         set_form_input $captcha_form captcha;
         set_unescape_uri $captcha_unescape $captcha_form;
         set_md5 $captcha_md5 "secret${captcha_unescape}${csrf_decrypt}";
-        if ($captcha_md5 != $cookie_captcha) {
-            return 303 $request_uri;
-        }
+        if ($captcha_md5 != $cookie_captcha) { return 303 $request_uri; }
         set_form_input $username_form username;
         set_form_input $password_form password;
         set_unescape_uri $username_unescape $username_form;
@@ -60,19 +59,20 @@ server {
         set_encrypt_session $auth_encrypt "$username_unescape:$password_unescape";
         set_encode_base64 $auth_encode $auth_encrypt;
         add_header Set-Cookie "Auth=$auth_encode; Max-Age=2592000";
+        if ($arg_request_uri = "") { return 303 /; }
         set_unescape_uri $request_uri_unescape $arg_request_uri;
-        return 303 $scheme://$server_name:$server_port$request_uri_unescape;
+        return 303 $request_uri_unescape;
+    }
+    location =/logout {
+        add_header Set-Cookie "Auth=; Max-Age=0";
+        return 303 /login;
     }
     location =/auth {
         internal;
-        if ($cookie_auth = "") {
-            return 401 BAD;
-        }
+        if ($cookie_auth = "") { return 401 BAD; }
         set_decode_base64 $auth_decode $cookie_auth;
         set_decrypt_session $auth_decrypt $auth_decode;
-        if ($auth_decrypt = "") {
-            return 401 BAD;
-        }
+        if ($auth_decrypt = "") { return 401 BAD; }
         set_encode_base64 $auth_encode $auth_decrypt;
         more_set_input_headers "Authorization: Basic $auth_encode";
         proxy_http_version 1.1;
