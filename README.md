@@ -1,9 +1,5 @@
 # auth
 ```nginx
-map $arg_request_uri $arg_request_uri_or_slash {
-    "" "/";
-    default $arg_request_uri;
-}
 server {
     listen 80;
     server_name cas.server.com;
@@ -62,7 +58,8 @@ server {
         set_encrypt_session $auth_encrypt "$username_unescape:$password_unescape";
         set_encode_base64 $auth_encode $auth_encrypt;
         add_header Set-Cookie "Auth=$auth_encode; Max-Age=2592000";
-        set_unescape_uri $request_uri_unescape $arg_request_uri_or_slash;
+        set_if_empty $arg_request_uri "/";
+        set_unescape_uri $request_uri_unescape $arg_request_uri;
         return 303 $request_uri_unescape;
     }
     location =/logout {
@@ -157,7 +154,8 @@ server {
         auth_request off;
         set_unescape_uri $auth_unescape $arg_auth;
         add_header Set-Cookie "Auth=$auth_unescape; Max-Age=3600";
-        set_unescape_uri $request_uri_unescape $arg_request_uri_or_slash;
+        set_if_empty $arg_request_uri "/";
+        set_unescape_uri $request_uri_unescape $arg_request_uri;
         return 303 $request_uri_unescape;
     }
     location =/logout {
