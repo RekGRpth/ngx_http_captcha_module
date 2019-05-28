@@ -129,7 +129,6 @@ server {
 server {
     listen 80;
     server_name test.server.com;
-    more_clear_input_headers Authorization;
     rewrite ^ https://$server_name$uri redirect;
 }
 server {
