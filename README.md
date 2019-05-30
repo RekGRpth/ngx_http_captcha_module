@@ -3,6 +3,7 @@
 server {
     listen 80;
     server_name cas.server.com;
+    more_clear_input_headers Authorization;
     rewrite ^ https://$server_name$uri redirect;
 }
 server {
@@ -10,6 +11,8 @@ server {
     server_name cas.server.com;
     ssl_certificate /etc/nginx/ssl/crt;
     ssl_certificate_key /etc/nginx/ssl/key;
+    root html/cas;
+    set_real_ip_from localhost;
     auth_request /auth;
     error_page 401 = @error401;
     more_clear_input_headers Authorization;
@@ -28,19 +31,17 @@ server {
         try_files /nonexistent @login_$request_method;
     }
     location @login_GET {
-        auth_request off;
         default_type "text/html; charset=utf-8";
         template cas/login.html.ct2;
         ctpp2 on;
         set_secure_random_alphanum $csrf_random 32;
-        encrypted_session_expires 3600;
+        encrypted_session_expires 300;
         set_encrypt_session $csrf_encrypt $csrf_random;
         set_encode_base64 $csrf_encode $csrf_encrypt;
-        add_header Set-Cookie "CSRF=$csrf_encode; Max-Age=3600";
-        echo -n "{\"csrf\":\"$csrf_random\"}";
+        add_header Set-Cookie "CSRF=$csrf_encode; Max-Age=300";
+        return 200 "{\"csrf\":\"$csrf_random\"}";
     }
     location @login_POST {
-        auth_request off;
         set_form_input $csrf_form csrf;
         set_unescape_uri $csrf_unescape $csrf_form;
         set_decode_base64 $csrf_decode $cookie_csrf;
@@ -55,11 +56,14 @@ server {
         set_unescape_uri $username_unescape $username_form;
         set_unescape_uri $password_unescape $password_form;
         encrypted_session_expires 2592000;
-        set_encrypt_session $auth_encrypt "$username_unescape:$password_unescape";
+        set $username_password "$username_unescape:$password_unescape";
+        set_encode_base64 $username_password_encode $username_password;
+        set_encrypt_session $auth_encrypt $username_password_encode;
         set_encode_base64 $auth_encode $auth_encrypt;
         add_header Set-Cookie "Auth=$auth_encode; Max-Age=2592000";
-        set_if_empty $arg_request_uri "/";
-        set_unescape_uri $request_uri_unescape $arg_request_uri;
+        set $arg_request_uri_or_slash $arg_request_uri;
+        set_if_empty $arg_request_uri_or_slash "/";
+        set_unescape_uri $request_uri_unescape $arg_request_uri_or_slash;
         return 303 $request_uri_unescape;
     }
     location =/logout {
@@ -70,16 +74,13 @@ server {
         internal;
         set_decode_base64 $auth_decode $cookie_auth;
         set_decrypt_session $auth_decrypt $auth_decode;
-        if ($auth_decrypt = "") { return 401 BAD; }
-        set_encode_base64 $auth_encode $auth_decrypt;
-        more_set_input_headers "Authorization: Basic $auth_encode";
-        proxy_http_version 1.1;
+        more_set_input_headers "Authorization: Basic $auth_decrypt";
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header Host $host;
         proxy_cache all;
         proxy_cache_valid 2592000;
-        proxy_pass http://localhost/basic?$auth_encode;
-#        proxy_pass http://localhost/ldap?$auth_encode;
+        proxy_pass http://127.0.0.1/basic?$auth_decrypt;
+#        proxy_pass http://127.0.0.1/ldap?$auth_decrypt;
     }
     location =/captcha {
         auth_request off;
@@ -90,21 +91,19 @@ server {
         set_decode_base64 $auth_decode $cookie_auth;
         set_decrypt_session $auth_decrypt $auth_decode;
         if ($auth_decrypt) {
-            encrypted_session_expires 3600;
-            set_encrypt_session $auth_encrypt $auth_decrypt;
-            set_encode_base64 $auth_encode $auth_encrypt;
-            set_escape_uri $auth_escape $auth_encode;
+            encrypted_session_expires 60;
+            set_encrypt_session $token_encrypt $auth_decrypt;
+            set_encode_base64 $token_encode $token_encrypt;
+            set_escape_uri $token_escape $token_encode;
             set_unescape_uri $service_unescape $arg_service;
-            return 303 $service_unescape?auth=$auth_escape&request_uri=$arg_request_uri;
+            return 303 $service_unescape?token=$token_escape&request_uri=$arg_request_uri;
         }
     }
     location =/serviceValidate {
-        auth_request off;
-        set_unescape_uri $auth_unescape $arg_auth;
-        set_decode_base64 $auth_decode $auth_unescape;
-        set_decrypt_session $auth_decrypt $auth_decode;
-        if ($auth_decrypt = "") { return 401 BAD; }
-        return 200 OK;
+        set_unescape_uri $token_unescape $arg_token;
+        set_decode_base64 $token_decode $token_unescape;
+        set_decrypt_session $token_decrypt $token_decode;
+        return 200 $token_decrypt;
     }
 }
 server {
@@ -126,6 +125,7 @@ server {
 server {
     listen 80;
     server_name test.server.com;
+    more_clear_input_headers Authorization;
     rewrite ^ https://$server_name$uri redirect;
 }
 server {
@@ -151,11 +151,19 @@ server {
         auth_request off;
     }
     location =/login {
-        auth_request off;
-        set_unescape_uri $auth_unescape $arg_auth;
-        add_header Set-Cookie "Auth=$auth_unescape; Max-Age=3600";
-        set_if_empty $arg_request_uri "/";
-        set_unescape_uri $request_uri_unescape $arg_request_uri;
+        eval $auth {
+            proxy_set_header Host $cas;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_pass $scheme://127.0.0.1:$server_port/serviceValidate?token=$arg_token;
+        }
+        if ($auth = "") { return 401 BAD; }
+        encrypted_session_expires 43200;
+        set_encrypt_session $auth_encrypt $auth;
+        set_encode_base64 $auth_encode $auth_encrypt;
+        add_header Set-Cookie "Auth=$auth_encode; Max-Age=43200";
+        set $arg_request_uri_or_slash $arg_request_uri;
+        set_if_empty $arg_request_uri_or_slash "/";
+        set_unescape_uri $request_uri_unescape $arg_request_uri_or_slash;
         return 303 $request_uri_unescape;
     }
     location =/logout {
@@ -167,15 +175,8 @@ server {
         set_decode_base64 $auth_decode $cookie_auth;
         set_decrypt_session $auth_decrypt $auth_decode;
         if ($auth_decrypt = "") { return 401 BAD; }
-        set_encode_base64 $auth_encode $auth_decrypt;
-        more_set_input_headers "Authorization: Basic $auth_encode";
-        set_escape_uri $auth_escape $cookie_auth;
-        proxy_http_version 1.1;
-        proxy_set_header Host $cas;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_cache all;
-        proxy_cache_valid 3600;
-        proxy_pass https://$cas/serviceValidate?auth=$auth_escape;
+        more_set_input_headers "Authorization: Basic $auth_decrypt";
+        echo -n OK;
     }
 }
 ```
