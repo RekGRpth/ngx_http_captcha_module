@@ -27,21 +27,17 @@ server {
         auth_request off;
     }
     location =/login {
-        auth_request off;
-        try_files /nonexistent @login_$request_method;
-    }
-    location @login_GET {
         default_type "text/html; charset=utf-8";
-        template cas/login.html.ct2;
-        ctpp2 on;
-        set_secure_random_alphanum $csrf_random 32;
-        encrypted_session_expires 300;
-        set_encrypt_session $csrf_encrypt $csrf_random;
-        set_encode_base64 $csrf_encode $csrf_encrypt;
-        add_header Set-Cookie "CSRF=$csrf_encode; Max-Age=300";
-        return 200 "{\"csrf\":\"$csrf_random\"}";
-    }
-    location @login_POST {
+        if ($request_method = GET) {
+            template cas/login.html.ct2;
+            ctpp2 on;
+            set_secure_random_alphanum $csrf_random 32;
+            encrypted_session_expires 300;
+            set_encrypt_session $csrf_encrypt $csrf_random;
+            set_encode_base64 $csrf_encode $csrf_encrypt;
+            add_header Set-Cookie "CSRF=$csrf_encode; Max-Age=300";
+            return 200 "{\"csrf\":\"$csrf_random\"}";
+        }
         set_form_input $csrf_form csrf;
         set_unescape_uri $csrf_unescape $csrf_form;
         set_decode_base64 $csrf_decode $cookie_csrf;
@@ -74,7 +70,9 @@ server {
         internal;
         set_decode_base64 $auth_decode $cookie_auth;
         set_decrypt_session $auth_decrypt $auth_decode;
+        if ($auth_decrypt = "") { return 401 UNAUTHORIZED; }
         more_set_input_headers "Authorization: Basic $auth_decrypt";
+        proxy_set_header Authorization "Basic $auth_decrypt";
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header Host $host;
         proxy_cache all;
@@ -110,14 +108,14 @@ server {
     listen localhost;
     server_name cas.server.com;
     set_real_ip_from localhost;
-    auth_basic_user_file html/cas/.htaccess;
-    auth_ldap_servers ldap;
     more_clear_input_headers Cookie;
     location =/basic {
+        auth_basic_user_file /data/nginx/.htaccess;
         auth_basic "auth";
         echo -n OK;
     }
     location =/ldap {
+        auth_ldap_servers ldap;
         auth_ldap "auth";
         echo -n OK;
     }
@@ -156,7 +154,7 @@ server {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_pass $scheme://127.0.0.1:$server_port/serviceValidate?token=$arg_token;
         }
-        if ($auth = "") { return 401 BAD; }
+        if ($auth = "") { return 401 UNAUTHORIZED; }
         encrypted_session_expires 43200;
         set_encrypt_session $auth_encrypt $auth;
         set_encode_base64 $auth_encode $auth_encrypt;
@@ -174,7 +172,7 @@ server {
         internal;
         set_decode_base64 $auth_decode $cookie_auth;
         set_decrypt_session $auth_decrypt $auth_decode;
-        if ($auth_decrypt = "") { return 401 BAD; }
+        if ($auth_decrypt = "") { return 401 UNAUTHORIZED; }
         more_set_input_headers "Authorization: Basic $auth_decrypt";
         echo -n OK;
     }
