@@ -47,3 +47,27 @@ Sets width of captcha image.<hr>
     Context: http, server, location
 
 Sets characters used in captcha text.<hr>
+
+    Syntax:	 captcha_csrf string;
+    Default: csrf
+    Context: http, server, location
+
+Sets name of csrf var of captcha.<hr>
+
+    Syntax:	 captcha_font string;
+    Default: /usr/share/fonts/ttf-liberation/LiberationSans-Regular.ttf
+    Context: http, server, location
+
+Sets font of captcha text.<hr>
+
+    Syntax:	 captcha_name string;
+    Default: Captcha
+    Context: http, server, location
+
+Sets name of captcha cookie.<hr>
+
+    Syntax:	 captcha_secret string;
+    Default: secret
+    Context: http, server, location
+
+Sets secret of captcha.
