@@ -3,7 +3,7 @@
 ### Example Configuration:
 ```nginx
 location =/captcha {
-    captcha_case on;
+    captcha;
 }
 location =/login {
     set_form_input $csrf_form csrf;
