@@ -1,3 +1,21 @@
+## Module:
+
+### Example Configuration:
+```nginx
+location =/captcha {
+    captcha_case on;
+}
+location =/login {
+    set_form_input $csrf_form csrf;
+    set_unescape_uri $csrf_unescape $csrf_form;
+    set_form_input $captcha_form captcha;
+    set_unescape_uri $captcha_unescape $captcha_form;
+    set_md5 $captcha_md5 "secret${captcha_unescape}${csrf_unescape}";
+    if ($captcha_md5 != $cookie_captcha) {
+        # captcha invalid code
+    }
+}
+```
 ### Directives:
 
     Syntax:	 captcha;
