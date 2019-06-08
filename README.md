@@ -35,3 +35,15 @@ Sets length of captcha text.<hr>
     Context: http, server, location
 
 Sets size of captcha font.<hr>
+
+    Syntax:	 captcha_width pixels;
+    Default: 130
+    Context: http, server, location
+
+Sets width of captcha image.<hr>
+
+    Syntax:	 captcha_charset string;
+    Default: abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789
+    Context: http, server, location
+
+Sets characters used in captcha text.<hr>
