@@ -11,3 +11,9 @@ Enables generation of captcha image.<hr>
     Context: http, server, location
 
 Enables/disables ignoring captcha case.<hr>
+
+    Syntax:	 captcha_expire seconds;
+    Default: 3600
+    Context: http, server, location
+
+Sets seconds before expiring captcha.<hr>
