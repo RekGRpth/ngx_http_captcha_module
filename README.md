@@ -17,3 +17,21 @@ Enables/disables ignoring captcha case.<hr>
     Context: http, server, location
 
 Sets seconds before expiring captcha.<hr>
+
+    Syntax:	 captcha_height pixels;
+    Default: 30
+    Context: http, server, location
+
+Sets height of captcha image.<hr>
+
+    Syntax:	 captcha_length characters;
+    Default: 4
+    Context: http, server, location
+
+Sets length of captcha text.<hr>
+
+    Syntax:	 captcha_size pixels;
+    Default: 20
+    Context: http, server, location
+
+Sets size of captcha font.<hr>
