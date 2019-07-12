@@ -9,7 +9,7 @@
 #define CAPTCHA_CSRF "csrf"
 #define CAPTCHA_LENGTH 4
 #define CAPTCHA_EXPIRE 3600
-#define CAPTCHA_FONT "/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf"
+#define CAPTCHA_FONT "/usr/share/fonts/ttf-liberation/LiberationSans-Regular.ttf"
 #define CAPTCHA_NAME "Captcha"
 #define CAPTCHA_HEIGHT 30
 #define CAPTCHA_SECRET "secret"
