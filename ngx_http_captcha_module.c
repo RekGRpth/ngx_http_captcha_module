@@ -51,6 +51,7 @@ static u_char *create_code(ngx_http_request_t *r) {
 
 static u_char *create_captcha_png(ngx_http_request_t *r, int *size, u_char *code) {
     ngx_http_captcha_loc_conf_t *conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
+    gdFTUseFontConfig(1);
     gdImagePtr img = gdImageCreateTrueColor(conf->width, conf->height);
     (void)gdImageFilledRectangle(img, 0, conf->height, conf->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
     for (int i = 0, brect[8], x = conf->width / conf->length; i < (int)conf->length; i++) {
@@ -111,9 +112,8 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     ngx_int_t rc = ngx_http_discard_request_body(r);
     if (rc != NGX_OK && rc != NGX_AGAIN) return rc;
     u_char *code = create_code(r);
-    if (!code) return NGX_ERROR;
-    rc = set_captcha_cookie(r, code);
-    if (rc != NGX_OK) return rc;
+    if (!code) return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (set_captcha_cookie(r, code) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
     r->headers_out.content_type.len = sizeof("image/png") - 1;
     r->headers_out.content_type.data = (u_char *)"image/png";
     r->headers_out.status = NGX_HTTP_OK;
@@ -126,10 +126,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     u_char *img_buf = create_captcha_png(r, &size, code);
     if (!img_buf) size = 0; else {
         ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, 0);
-        if (!cln) {
-            (void)gdFree(img_buf);
-            return NGX_ERROR;
-        }
+        if (!cln) { (void)gdFree(img_buf); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
         cln->handler = gdFree;
         cln->data = img_buf;
     }
