@@ -15,6 +15,8 @@ typedef struct {
     ngx_str_t font;
     ngx_str_t name;
     ngx_str_t secret;
+    ngx_uint_t arg;
+    ngx_uint_t cookie;
     ngx_uint_t expire;
     ngx_uint_t height;
     ngx_uint_t length;
@@ -62,24 +64,14 @@ static u_char *create_captcha_png(ngx_http_request_t *r, int *size, u_char *code
 static ngx_int_t set_captcha_cookie(ngx_http_request_t *r, u_char *code) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: %s", __func__);
     ngx_http_captcha_loc_conf_t *conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    ngx_str_t csrf_var;
-/*    csrf_var.len = conf->csrf.len + sizeof("cookie_%V") - 1 - 2;
-    if (!(csrf_var.data = ngx_pnalloc(r->pool, csrf_var.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
-    if (ngx_snprintf(csrf_var.data, csrf_var.len, "cookie_%V", &conf->csrf) != csrf_var.data + csrf_var.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
-    ngx_http_variable_value_t *csrf = ngx_http_get_variable(r, &csrf_var, ngx_hash_key(csrf_var.data, csrf_var.len));
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: cookie = %d", conf->cookie);
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: arg = %d", conf->arg);
+    ngx_http_variable_value_t *csrf = ngx_http_get_indexed_variable(r, conf->cookie);
     if (!csrf || !csrf->data || !csrf->len) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: no \"%V\" cookie specified, trying arg", &conf->csrf);*/
-        csrf_var.len = conf->csrf.len + sizeof("arg_%V") - 1 - 2;
-        if (!(csrf_var.data = ngx_pnalloc(r->pool, csrf_var.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
-        if (ngx_snprintf(csrf_var.data, csrf_var.len, "arg_%V", &conf->csrf) != csrf_var.data + csrf_var.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
-/*        csrf_var.data += 3;
-        csrf_var.len -= 3;
-        csrf_var.data[0] = 'a';
-        csrf_var.data[1] = 'r';
-        csrf_var.data[2] = 'g';*/
-        ngx_http_variable_value_t *csrf = ngx_http_get_variable(r, &csrf_var, ngx_hash_key(csrf_var.data, csrf_var.len));
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: no \"%V\" cookie specified, trying arg...", &conf->csrf);
+        csrf = ngx_http_get_indexed_variable(r, conf->arg);
         if (!csrf || !csrf->data || !csrf->len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: no \"%V\" arg specified", &conf->csrf); return NGX_ERROR; }
-//    }
+    }
     if (conf->icase) {
         u_char *icode = ngx_pnalloc(r->pool, conf->length);
         if (!icode) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
@@ -253,6 +245,21 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     if (!conf->font.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha font cannot be empty"); return NGX_CONF_ERROR; }
     if (!conf->charset.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha charset cannot be empty"); return NGX_CONF_ERROR; }
     if (!conf->csrf.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha csrf cannot be empty"); return NGX_CONF_ERROR; }
+    ngx_str_t name;
+    name.len = conf->csrf.len + sizeof("cookie_%V") - 1 - 2;
+    if (!(name.data = ngx_pnalloc(cf->pool, name.len))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
+    if (ngx_snprintf(name.data, name.len, "cookie_%V", &conf->csrf) != name.data + name.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
+    ngx_int_t index = ngx_http_get_variable_index(cf, &name);
+    if (index == NGX_ERROR) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: invalid cookie \"%V\"", &name); return NGX_CONF_ERROR; }
+    conf->cookie = (ngx_uint_t) index;
+    name.data += 3;
+    name.len -= 3;
+    name.data[0] = 'a';
+    name.data[1] = 'r';
+    name.data[2] = 'g';
+    index = ngx_http_get_variable_index(cf, &name);
+    if (index == NGX_ERROR) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: invalid arg \"%V\"", &name); return NGX_CONF_ERROR; }
+    conf->arg = (ngx_uint_t) index;
     return NGX_CONF_OK;
 }
 
