@@ -42,8 +42,8 @@ static int mt_rand(int min, int max) {
 
 static u_char *create_code(ngx_http_request_t *r) {
     ngx_http_captcha_loc_conf_t *conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    u_char *code = ngx_palloc(r->pool, conf->length + 1);
-    if (!code) return NULL;
+    u_char *code = ngx_pnalloc(r->pool, conf->length + 1);
+    if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NULL; }
     for (size_t i = 0; i < conf->length; i++) code[i] = conf->charset.data[mt_rand(0, conf->charset.len - 1)];
     code[conf->length] = '\0';
     return code;
@@ -75,7 +75,7 @@ static ngx_int_t set_captcha_cookie(ngx_http_request_t *r, u_char *code) {
     (void)ngx_md5_init(&md5);
     (void)ngx_md5_update(&md5, (const void *)conf->secret.data, conf->secret.len);
     if (conf->icase) {
-        u_char *icode = ngx_palloc(r->pool, conf->length + 1);
+        u_char *icode = ngx_pnalloc(r->pool, conf->length);
         if (!icode) return NGX_ERROR;
         (void)ngx_strlow(icode, code, conf->length);
         code = icode;
@@ -83,12 +83,12 @@ static ngx_int_t set_captcha_cookie(ngx_http_request_t *r, u_char *code) {
     }
     (void)ngx_md5_update(&md5, (const void *)code, (size_t)conf->length);
     ngx_str_t csrf_var;
-    csrf_var.len = conf->csrf.len + sizeof("arg_");
-    csrf_var.data = ngx_palloc(r->pool, csrf_var.len);
-    if (!csrf_var.data) return NGX_ERROR;
-    csrf_var.len = ngx_sprintf(csrf_var.data, "arg_%s", conf->csrf.data) - csrf_var.data;
+    csrf_var.len = conf->csrf.len + sizeof("arg_") - 1;
+    if (!(csrf_var.data = ngx_pnalloc(r->pool, csrf_var.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
+    u_char *last = ngx_snprintf(csrf_var.data, csrf_var.len, "arg_%s", conf->csrf.data);
+    if (last != csrf_var.data + csrf_var.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
     ngx_http_variable_value_t *csrf = ngx_http_get_variable(r, &csrf_var, ngx_hash_key(csrf_var.data, csrf_var.len));
-    if (!csrf || !csrf->data) return NGX_ERROR;
+    if (!csrf || !csrf->data || !csrf->len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: no \"%V\" arg specified", &conf->csrf); return NGX_ERROR; }
     (void)ngx_md5_update(&md5, (const void *)csrf->data, csrf->len);
     u_char bhash[MD5_BHASH_LEN];
     (void)ngx_md5_final(bhash, &md5);
@@ -96,14 +96,14 @@ static ngx_int_t set_captcha_cookie(ngx_http_request_t *r, u_char *code) {
     (u_char *)ngx_hex_dump(hash, bhash, MD5_BHASH_LEN);
     hash[MD5_HASH_LEN] = '\0';
     ngx_table_elt_t *set_cookie_name = ngx_list_push(&r->headers_out.headers);
-    if (!set_cookie_name) return NGX_ERROR;
+    if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
     set_cookie_name->hash = 1;
     ngx_str_set(&set_cookie_name->key, "Set-Cookie");
-    ngx_uint_t len = conf->name.len + MD5_HASH_LEN + (sizeof("%s=%s; Max-Age=%i") - 1) - 1 - 1 - 1;
-    for (ngx_uint_t number = conf->expire; number /= 10; len++);
-    set_cookie_name->value.data = ngx_palloc(r->pool, len);
-    if (!set_cookie_name->value.data) return NGX_ERROR;
-    set_cookie_name->value.len = ngx_sprintf(set_cookie_name->value.data, "%s=%s; Max-Age=%i", conf->name.data, hash, conf->expire) - set_cookie_name->value.data;
+    set_cookie_name->value.len = conf->name.len + MD5_HASH_LEN + sizeof("=; Max-Age=") - 1;
+    for (ngx_uint_t number = conf->expire; number /= 10; set_cookie_name->value.len++);
+    if (!(set_cookie_name->value.data = ngx_pnalloc(r->pool, set_cookie_name->value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
+    last = ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%i", &conf->name, hash, conf->expire);
+    if (last != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
     return NGX_OK;
 }
 
@@ -114,8 +114,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     u_char *code = create_code(r);
     if (!code) return NGX_HTTP_INTERNAL_SERVER_ERROR;
     if (set_captcha_cookie(r, code) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    r->headers_out.content_type.len = sizeof("image/png") - 1;
-    r->headers_out.content_type.data = (u_char *)"image/png";
+    ngx_str_set(&r->headers_out.content_type, "image/png");
     r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.content_length_n = 0;
     if (r->method == NGX_HTTP_HEAD) {
@@ -229,16 +228,6 @@ static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
     conf->length = NGX_CONF_UNSET_UINT;
     conf->size = NGX_CONF_UNSET_UINT;
     conf->width = NGX_CONF_UNSET_UINT;
-    conf->charset.data = NULL;
-    conf->charset.len = 0;
-    conf->csrf.data = NULL;
-    conf->csrf.len = 0;
-    conf->font.data = NULL;
-    conf->font.len = 0;
-    conf->name.data = NULL;
-    conf->name.len = 0;
-    conf->secret.data = NULL;
-    conf->secret.len = 0;
     return conf;
 }
 
@@ -257,11 +246,11 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_str_value(conf->name, prev->name, CAPTCHA_NAME);
     ngx_conf_merge_str_value(conf->secret, prev->secret, CAPTCHA_SECRET);
     if (conf->size > conf->height) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha size is too large"); return NGX_CONF_ERROR; }
-    if (conf->name.len == 0) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha name cannot be empty"); return NGX_CONF_ERROR; }
-    if (conf->secret.len == 0) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha secret cannot be empty"); return NGX_CONF_ERROR; }
-    if (conf->font.len == 0) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha font cannot be empty"); return NGX_CONF_ERROR; }
-    if (conf->charset.len == 0) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha charset cannot be empty"); return NGX_CONF_ERROR; }
-    if (conf->csrf.len == 0) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha csrf cannot be empty"); return NGX_CONF_ERROR; }
+    if (!conf->name.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha name cannot be empty"); return NGX_CONF_ERROR; }
+    if (!conf->secret.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha secret cannot be empty"); return NGX_CONF_ERROR; }
+    if (!conf->font.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha font cannot be empty"); return NGX_CONF_ERROR; }
+    if (!conf->charset.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha charset cannot be empty"); return NGX_CONF_ERROR; }
+    if (!conf->csrf.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha csrf cannot be empty"); return NGX_CONF_ERROR; }
     return NGX_CONF_OK;
 }
 
