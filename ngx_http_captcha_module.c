@@ -44,20 +44,24 @@ static u_char *ngx_http_captcha_png(ngx_http_request_t *r, int *size, u_char *co
     return out;
 }
 
-static ngx_int_t ngx_http_captcha_cookie(ngx_http_request_t *r, u_char *code) {
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: %s", __func__);
+static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
+    if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) return NGX_HTTP_NOT_ALLOWED;
+    ngx_int_t rc = ngx_http_discard_request_body(r);
+    if (rc != NGX_OK && rc != NGX_AGAIN) return rc;
     ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: cookie = %d", location_conf->cookie);
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: arg = %d", location_conf->arg);
+    u_char *code = ngx_pnalloc(r->pool, location_conf->length + 1);
+    if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    for (size_t i = 0; i < location_conf->length; i++) code[i] = location_conf->charset.data[mt_rand(0, location_conf->charset.len - 1)];
+    code[location_conf->length] = '\0';
     ngx_http_variable_value_t *csrf = ngx_http_get_indexed_variable(r, location_conf->cookie);
     if (!csrf || !csrf->data || !csrf->len) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: no \"%V\" cookie specified, trying arg...", &location_conf->csrf);
         csrf = ngx_http_get_indexed_variable(r, location_conf->arg);
-        if (!csrf || !csrf->data || !csrf->len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: no \"%V\" arg specified", &location_conf->csrf); return NGX_ERROR; }
+        if (!csrf || !csrf->data || !csrf->len) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: no \"%V\" arg specified", &location_conf->csrf); return NGX_HTTP_NOT_FOUND; }
     }
     if (location_conf->icase) {
         u_char *icode = ngx_pnalloc(r->pool, location_conf->length);
-        if (!icode) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
+        if (!icode) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
         (void)ngx_strlow(icode, code, location_conf->length);
         code = icode;
     }
@@ -72,27 +76,14 @@ static ngx_int_t ngx_http_captcha_cookie(ngx_http_request_t *r, u_char *code) {
     (u_char *)ngx_hex_dump(hash, bhash, MD5_BHASH_LEN);
     hash[MD5_HASH_LEN] = '\0';
     ngx_table_elt_t *set_cookie_name = ngx_list_push(&r->headers_out.headers);
-    if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
+    if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     set_cookie_name->hash = 1;
     ngx_str_set(&set_cookie_name->key, "Set-Cookie");
     set_cookie_name->value.len = location_conf->name.len + MD5_HASH_LEN + sizeof("%V=%s; Max-Age=%d") - 1 - 6;
     for (ngx_uint_t number = location_conf->expire; number /= 10; set_cookie_name->value.len++);
     set_cookie_name->value.len++;
-    if (!(set_cookie_name->value.data = ngx_pnalloc(r->pool, set_cookie_name->value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
-    if (ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%d", &location_conf->name, hash, location_conf->expire) != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
-    return NGX_OK;
-}
-
-static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
-    if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) return NGX_HTTP_NOT_ALLOWED;
-    ngx_int_t rc = ngx_http_discard_request_body(r);
-    if (rc != NGX_OK && rc != NGX_AGAIN) return rc;
-    ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    u_char *code = ngx_pnalloc(r->pool, location_conf->length + 1);
-    if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    for (size_t i = 0; i < location_conf->length; i++) code[i] = location_conf->charset.data[mt_rand(0, location_conf->charset.len - 1)];
-    code[location_conf->length] = '\0';
-    if (ngx_http_captcha_cookie(r, code) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (!(set_cookie_name->value.data = ngx_pnalloc(r->pool, set_cookie_name->value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%d", &location_conf->name, hash, location_conf->expire) != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     ngx_str_set(&r->headers_out.content_type, "image/png");
     r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.content_length_n = 0;
