@@ -78,27 +78,32 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
         rc = ngx_http_send_header(r);
         if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) return rc;
     }
-    int size;
     gdFTUseFontConfig(1);
     gdImagePtr img = gdImageCreateTrueColor(location_conf->width, location_conf->height);
     (void)gdImageFilledRectangle(img, 0, location_conf->height, location_conf->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
     for (ngx_uint_t i = 0, brect[8], x = location_conf->width / location_conf->length; i < location_conf->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location_conf->font.data, location_conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location_conf->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
     for (ngx_uint_t i = 0; i < location_conf->line; i++) (void)gdImageLine(img, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
     for (ngx_uint_t i = 0, brect[8]; i < location_conf->star; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location_conf->font.data, 8, 0, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), "*");
+    int size;
     u_char *img_buf = (u_char *)gdImagePngPtrEx(img, &size, location_conf->level);
     (void)gdImageDestroy(img);
-    if (!img_buf) size = 0; else {
-        ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, 0);
-        if (!cln) { (void)gdFree(img_buf); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-        cln->handler = gdFree;
-        cln->data = img_buf;
-    }
-    ngx_buf_t b = {.pos = (u_char *)img_buf, .last = (u_char *)img_buf + size, .memory = 1, .last_buf = 1};
-    ngx_chain_t out = {.buf = &b, .next = NULL};
+    ngx_buf_t *b = ngx_create_temp_buf(r->pool, size);
+    if (!b) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); goto gdFree; }
+    ngx_chain_t *chain = ngx_alloc_chain_link(r->pool);
+    if (!chain) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); goto gdFree; }
+    chain->buf = b;
+    b->memory = 1;
+    b->tag = r->upstream->output.tag;
+    b->last = ngx_copy(b->last, img_buf, size);
+    if (b->last != b->end) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); goto gdFree; }
+    chain->next = NULL;
     r->headers_out.content_length_n = size;
     rc = ngx_http_send_header(r);
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) return rc;
-    return ngx_http_output_filter(r, &out);
+    return ngx_http_output_filter(r, chain);
+gdFree:
+    gdFree(img_buf);
+    return NGX_HTTP_INTERNAL_SERVER_ERROR;
 }
 
 static char *ngx_http_captcha_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
