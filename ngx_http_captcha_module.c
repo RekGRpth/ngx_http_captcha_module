@@ -8,6 +8,7 @@
 
 typedef struct {
     ngx_flag_t icase;
+    ngx_int_t level;
     ngx_str_t charset;
     ngx_str_t csrf;
     ngx_str_t font;
@@ -84,7 +85,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     for (ngx_uint_t i = 0, brect[8], x = location_conf->width / location_conf->length; i < location_conf->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location_conf->font.data, location_conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location_conf->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
     for (ngx_uint_t i = 0; i < location_conf->line; i++) (void)gdImageLine(img, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
     for (ngx_uint_t i = 0, brect[8]; i < location_conf->star; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location_conf->font.data, 8, 0, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), "*");
-    u_char *img_buf = (u_char *)gdImagePngPtrEx(img, &size, -1);
+    u_char *img_buf = (u_char *)gdImagePngPtrEx(img, &size, location_conf->level);
     (void)gdImageDestroy(img);
     if (!img_buf) size = 0; else {
         ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, 0);
@@ -161,6 +162,12 @@ static ngx_command_t ngx_http_captcha_commands[] = {
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_conf_t, star),
     .post = NULL },
+  { .name = ngx_string("captcha_level"),
+    .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+    .set = ngx_conf_set_num_slot,
+    .conf = NGX_HTTP_LOC_CONF_OFFSET,
+    .offset = offsetof(ngx_http_captcha_location_conf_t, level),
+    .post = NULL },
   { .name = ngx_string("captcha_charset"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_str_slot,
@@ -205,6 +212,7 @@ static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
     location_conf->width = NGX_CONF_UNSET_UINT;
     location_conf->line = NGX_CONF_UNSET_UINT;
     location_conf->star = NGX_CONF_UNSET_UINT;
+    location_conf->level = NGX_CONF_UNSET;
     return location_conf;
 }
 
@@ -219,6 +227,7 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_uint_value(conf->width, prev->width, 130);
     ngx_conf_merge_uint_value(conf->line, prev->line, 10);
     ngx_conf_merge_uint_value(conf->star, prev->star, 100);
+    ngx_conf_merge_value(conf->level, prev->level, -1);
     ngx_conf_merge_str_value(conf->charset, prev->charset, "abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789");
     ngx_conf_merge_str_value(conf->csrf, prev->csrf, "csrf");
     ngx_conf_merge_str_value(conf->font, prev->font, "/usr/local/share/fonts/NimbusSans-Regular.ttf");
