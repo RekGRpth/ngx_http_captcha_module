@@ -22,7 +22,7 @@ typedef struct {
     ngx_uint_t size;
     ngx_uint_t star;
     ngx_uint_t width;
-} ngx_http_captcha_loc_conf_t;
+} ngx_http_captcha_location_conf_t;
 
 ngx_module_t ngx_http_captcha_module;
 
@@ -32,23 +32,23 @@ static int mt_rand(int min, int max) {
 
 static u_char *create_code(ngx_http_request_t *r) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: %s", __func__);
-    ngx_http_captcha_loc_conf_t *conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    u_char *code = ngx_pnalloc(r->pool, conf->length + 1);
+    ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
+    u_char *code = ngx_pnalloc(r->pool, location_conf->length + 1);
     if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NULL; }
-    for (size_t i = 0; i < conf->length; i++) code[i] = conf->charset.data[mt_rand(0, conf->charset.len - 1)];
-    code[conf->length] = '\0';
+    for (size_t i = 0; i < location_conf->length; i++) code[i] = location_conf->charset.data[mt_rand(0, location_conf->charset.len - 1)];
+    code[location_conf->length] = '\0';
     return code;
 }
 
 static u_char *create_captcha_png(ngx_http_request_t *r, int *size, u_char *code) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: %s", __func__);
-    ngx_http_captcha_loc_conf_t *conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
+    ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
     gdFTUseFontConfig(1);
-    gdImagePtr img = gdImageCreateTrueColor(conf->width, conf->height);
-    (void)gdImageFilledRectangle(img, 0, conf->height, conf->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
-    for (ngx_uint_t i = 0, brect[8], x = conf->width / conf->length; i < conf->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)conf->font.data, conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), conf->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
-    for (ngx_uint_t i = 0; i < conf->line; i++) (void)gdImageLine(img, mt_rand(0, conf->width), mt_rand(0, conf->height), mt_rand(0, conf->width), mt_rand(0, conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
-    for (ngx_uint_t i = 0, brect[8]; i < conf->star; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)conf->font.data, 8, 0, mt_rand(0, conf->width), mt_rand(0, conf->height), "*");
+    gdImagePtr img = gdImageCreateTrueColor(location_conf->width, location_conf->height);
+    (void)gdImageFilledRectangle(img, 0, location_conf->height, location_conf->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
+    for (ngx_uint_t i = 0, brect[8], x = location_conf->width / location_conf->length; i < location_conf->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location_conf->font.data, location_conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location_conf->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
+    for (ngx_uint_t i = 0; i < location_conf->line; i++) (void)gdImageLine(img, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
+    for (ngx_uint_t i = 0, brect[8]; i < location_conf->star; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location_conf->font.data, 8, 0, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), "*");
     u_char *out = (u_char *)gdImagePngPtrEx(img, size, -1);
     (void)gdImageDestroy(img);
     return out;
@@ -56,25 +56,25 @@ static u_char *create_captcha_png(ngx_http_request_t *r, int *size, u_char *code
 
 static ngx_int_t set_captcha_cookie(ngx_http_request_t *r, u_char *code) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: %s", __func__);
-    ngx_http_captcha_loc_conf_t *conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: cookie = %d", conf->cookie);
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: arg = %d", conf->arg);
-    ngx_http_variable_value_t *csrf = ngx_http_get_indexed_variable(r, conf->cookie);
+    ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: cookie = %d", location_conf->cookie);
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: arg = %d", location_conf->arg);
+    ngx_http_variable_value_t *csrf = ngx_http_get_indexed_variable(r, location_conf->cookie);
     if (!csrf || !csrf->data || !csrf->len) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: no \"%V\" cookie specified, trying arg...", &conf->csrf);
-        csrf = ngx_http_get_indexed_variable(r, conf->arg);
-        if (!csrf || !csrf->data || !csrf->len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: no \"%V\" arg specified", &conf->csrf); return NGX_ERROR; }
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: no \"%V\" cookie specified, trying arg...", &location_conf->csrf);
+        csrf = ngx_http_get_indexed_variable(r, location_conf->arg);
+        if (!csrf || !csrf->data || !csrf->len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: no \"%V\" arg specified", &location_conf->csrf); return NGX_ERROR; }
     }
-    if (conf->icase) {
-        u_char *icode = ngx_pnalloc(r->pool, conf->length);
+    if (location_conf->icase) {
+        u_char *icode = ngx_pnalloc(r->pool, location_conf->length);
         if (!icode) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
-        (void)ngx_strlow(icode, code, conf->length);
+        (void)ngx_strlow(icode, code, location_conf->length);
         code = icode;
     }
     ngx_md5_t md5;
     (void)ngx_md5_init(&md5);
-    (void)ngx_md5_update(&md5, (const void *)conf->secret.data, conf->secret.len);
-    (void)ngx_md5_update(&md5, (const void *)code, (size_t)conf->length);
+    (void)ngx_md5_update(&md5, (const void *)location_conf->secret.data, location_conf->secret.len);
+    (void)ngx_md5_update(&md5, (const void *)code, (size_t)location_conf->length);
     (void)ngx_md5_update(&md5, (const void *)csrf->data, csrf->len);
     u_char bhash[MD5_BHASH_LEN];
     (void)ngx_md5_final(bhash, &md5);
@@ -85,11 +85,11 @@ static ngx_int_t set_captcha_cookie(ngx_http_request_t *r, u_char *code) {
     if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
     set_cookie_name->hash = 1;
     ngx_str_set(&set_cookie_name->key, "Set-Cookie");
-    set_cookie_name->value.len = conf->name.len + MD5_HASH_LEN + sizeof("%V=%s; Max-Age=%d") - 1 - 6;
-    for (ngx_uint_t number = conf->expire; number /= 10; set_cookie_name->value.len++);
+    set_cookie_name->value.len = location_conf->name.len + MD5_HASH_LEN + sizeof("%V=%s; Max-Age=%d") - 1 - 6;
+    for (ngx_uint_t number = location_conf->expire; number /= 10; set_cookie_name->value.len++);
     set_cookie_name->value.len++;
     if (!(set_cookie_name->value.data = ngx_pnalloc(r->pool, set_cookie_name->value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
-    if (ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%d", &conf->name, hash, conf->expire) != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
+    if (ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%d", &location_conf->name, hash, location_conf->expire) != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
     return NGX_OK;
 }
 
@@ -141,100 +141,100 @@ static ngx_command_t ngx_http_captcha_commands[] = {
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_flag_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, icase),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, icase),
     .post = NULL },
   { .name = ngx_string("captcha_expire"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, expire),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, expire),
     .post = NULL },
   { .name = ngx_string("captcha_height"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, height),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, height),
     .post = NULL },
   { .name = ngx_string("captcha_length"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, length),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, length),
     .post = NULL },
   { .name = ngx_string("captcha_size"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, size),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, size),
     .post = NULL },
   { .name = ngx_string("captcha_width"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, width),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, width),
     .post = NULL },
   { .name = ngx_string("captcha_line"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, line),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, line),
     .post = NULL },
   { .name = ngx_string("captcha_star"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, star),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, star),
     .post = NULL },
   { .name = ngx_string("captcha_charset"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_str_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, charset),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, charset),
     .post = NULL },
   { .name = ngx_string("captcha_csrf"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_str_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, csrf),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, csrf),
     .post = NULL },
   { .name = ngx_string("captcha_font"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_str_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, font),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, font),
     .post = NULL },
   { .name = ngx_string("captcha_name"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_str_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, name),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, name),
     .post = NULL },
   { .name = ngx_string("captcha_secret"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_str_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = offsetof(ngx_http_captcha_loc_conf_t, secret),
+    .offset = offsetof(ngx_http_captcha_location_conf_t, secret),
     .post = NULL },
     ngx_null_command
 };
 
 static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
-    ngx_http_captcha_loc_conf_t *conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_captcha_loc_conf_t));
-    if (!conf) return NGX_CONF_ERROR;
-    conf->icase = NGX_CONF_UNSET;
-    conf->expire = NGX_CONF_UNSET_UINT;
-    conf->height = NGX_CONF_UNSET_UINT;
-    conf->length = NGX_CONF_UNSET_UINT;
-    conf->size = NGX_CONF_UNSET_UINT;
-    conf->width = NGX_CONF_UNSET_UINT;
-    conf->line = NGX_CONF_UNSET_UINT;
-    conf->star = NGX_CONF_UNSET_UINT;
-    return conf;
+    ngx_http_captcha_location_conf_t *location_conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_captcha_location_conf_t));
+    if (!location_conf) return NGX_CONF_ERROR;
+    location_conf->icase = NGX_CONF_UNSET;
+    location_conf->expire = NGX_CONF_UNSET_UINT;
+    location_conf->height = NGX_CONF_UNSET_UINT;
+    location_conf->length = NGX_CONF_UNSET_UINT;
+    location_conf->size = NGX_CONF_UNSET_UINT;
+    location_conf->width = NGX_CONF_UNSET_UINT;
+    location_conf->line = NGX_CONF_UNSET_UINT;
+    location_conf->star = NGX_CONF_UNSET_UINT;
+    return location_conf;
 }
 
 static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child) {
-    ngx_http_captcha_loc_conf_t *prev = parent;
-    ngx_http_captcha_loc_conf_t *conf = child;
+    ngx_http_captcha_location_conf_t *prev = parent;
+    ngx_http_captcha_location_conf_t *conf = child;
     ngx_conf_merge_value(conf->icase, prev->icase, 0);
     ngx_conf_merge_uint_value(conf->expire, prev->expire, 300);
     ngx_conf_merge_uint_value(conf->height, prev->height, 30);
