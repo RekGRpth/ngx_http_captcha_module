@@ -80,6 +80,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     gdFTUseFontConfig(1);
     gdImagePtr img = gdImageCreateTrueColor(location_conf->width, location_conf->height);
+    if (!img) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     (void)gdImageFilledRectangle(img, 0, location_conf->height, location_conf->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
     for (ngx_uint_t i = 0, brect[8], x = location_conf->width / location_conf->length; i < location_conf->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location_conf->font.data, location_conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location_conf->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
     for (ngx_uint_t i = 0; i < location_conf->line; i++) (void)gdImageLine(img, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
@@ -87,6 +88,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     int size;
     u_char *img_buf = (u_char *)gdImagePngPtrEx(img, &size, location_conf->level);
     (void)gdImageDestroy(img);
+    if (!img_buf) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     ngx_buf_t *b = ngx_create_temp_buf(r->pool, size);
     if (!b) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); gdFree(img_buf); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     b->memory = 1;
@@ -231,6 +233,7 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_uint_value(conf->line, prev->line, 10);
     ngx_conf_merge_uint_value(conf->star, prev->star, 100);
     ngx_conf_merge_value(conf->level, prev->level, -1);
+    if (conf->level > 9) conf->level = 9; else if (conf->level < -1) conf->level = -1;
     ngx_conf_merge_str_value(conf->charset, prev->charset, "abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789");
     ngx_conf_merge_str_value(conf->csrf, prev->csrf, "csrf");
     ngx_conf_merge_str_value(conf->font, prev->font, "/usr/local/share/fonts/NimbusSans-Regular.ttf");
