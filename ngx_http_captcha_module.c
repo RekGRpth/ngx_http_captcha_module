@@ -93,8 +93,8 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (!chain) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); goto gdFree; }
     chain->buf = b;
     b->memory = 1;
-    b->tag = r->upstream->output.tag;
     b->last = ngx_copy(b->last, img_buf, size);
+    gdFree(img_buf);
     if (b->last != b->end) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); goto gdFree; }
     chain->next = NULL;
     r->headers_out.content_length_n = size;
