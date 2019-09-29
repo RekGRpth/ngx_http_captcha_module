@@ -30,16 +30,6 @@ static int mt_rand(int min, int max) {
     return (ngx_random() % (max - min + 1)) + min;
 }
 
-static u_char *ngx_http_captcha_code(ngx_http_request_t *r) {
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: %s", __func__);
-    ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    u_char *code = ngx_pnalloc(r->pool, location_conf->length + 1);
-    if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NULL; }
-    for (size_t i = 0; i < location_conf->length; i++) code[i] = location_conf->charset.data[mt_rand(0, location_conf->charset.len - 1)];
-    code[location_conf->length] = '\0';
-    return code;
-}
-
 static u_char *ngx_http_captcha_png(ngx_http_request_t *r, int *size, u_char *code) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: %s", __func__);
     ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
@@ -94,12 +84,14 @@ static ngx_int_t ngx_http_captcha_cookie(ngx_http_request_t *r, u_char *code) {
 }
 
 static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: %s", __func__);
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) return NGX_HTTP_NOT_ALLOWED;
     ngx_int_t rc = ngx_http_discard_request_body(r);
     if (rc != NGX_OK && rc != NGX_AGAIN) return rc;
-    u_char *code = ngx_http_captcha_code(r);
-    if (!code) return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
+    u_char *code = ngx_pnalloc(r->pool, location_conf->length + 1);
+    if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    for (size_t i = 0; i < location_conf->length; i++) code[i] = location_conf->charset.data[mt_rand(0, location_conf->charset.len - 1)];
+    code[location_conf->length] = '\0';
     if (ngx_http_captcha_cookie(r, code) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
     ngx_str_set(&r->headers_out.content_type, "image/png");
     r->headers_out.status = NGX_HTTP_OK;
