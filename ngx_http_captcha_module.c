@@ -3,8 +3,6 @@
 #include <gd.h>
 
 #define M_PI 3.14159265358979323846
-#define CAPTCHA_LINE 6
-#define CAPTCHA_STAR 100
 #define MD5_BHASH_LEN 16
 #define MD5_HASH_LEN (MD5_BHASH_LEN * 2)
 
@@ -20,7 +18,9 @@ typedef struct {
     ngx_uint_t expire;
     ngx_uint_t height;
     ngx_uint_t length;
+    ngx_uint_t line;
     ngx_uint_t size;
+    ngx_uint_t star;
     ngx_uint_t width;
 } ngx_http_captcha_loc_conf_t;
 
@@ -46,16 +46,9 @@ static u_char *create_captcha_png(ngx_http_request_t *r, int *size, u_char *code
     gdFTUseFontConfig(1);
     gdImagePtr img = gdImageCreateTrueColor(conf->width, conf->height);
     (void)gdImageFilledRectangle(img, 0, conf->height, conf->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
-    for (int i = 0, brect[8], x = conf->width / conf->length; i < (int)conf->length; i++) {
-        char str[2] = {*code++, '\0'};
-        (char *)gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)conf->font.data, conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), conf->height / 1.4, str);
-    }
-    for (int i = 0; i < CAPTCHA_LINE; i++) {
-        (void)gdImageLine(img, mt_rand(0, conf->width), mt_rand(0, conf->height), mt_rand(0, conf->width), mt_rand(0, conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
-    }
-    for (int i = 0, brect[8]; i < CAPTCHA_STAR; i++) {
-        (char *)gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)conf->font.data, 8, 0, mt_rand(0, conf->width), mt_rand(0, conf->height), "*");
-    }
+    for (ngx_uint_t i = 0, brect[8], x = conf->width / conf->length; i < conf->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)conf->font.data, conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), conf->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
+    for (ngx_uint_t i = 0; i < conf->line; i++) (void)gdImageLine(img, mt_rand(0, conf->width), mt_rand(0, conf->height), mt_rand(0, conf->width), mt_rand(0, conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
+    for (ngx_uint_t i = 0, brect[8]; i < conf->star; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)conf->font.data, 8, 0, mt_rand(0, conf->width), mt_rand(0, conf->height), "*");
     u_char *out = (u_char *)gdImagePngPtrEx(img, size, -1);
     (void)gdImageDestroy(img);
     return out;
@@ -180,6 +173,18 @@ static ngx_command_t ngx_http_captcha_commands[] = {
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_loc_conf_t, width),
     .post = NULL },
+  { .name = ngx_string("captcha_line"),
+    .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+    .set = ngx_conf_set_num_slot,
+    .conf = NGX_HTTP_LOC_CONF_OFFSET,
+    .offset = offsetof(ngx_http_captcha_loc_conf_t, line),
+    .post = NULL },
+  { .name = ngx_string("captcha_star"),
+    .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+    .set = ngx_conf_set_num_slot,
+    .conf = NGX_HTTP_LOC_CONF_OFFSET,
+    .offset = offsetof(ngx_http_captcha_loc_conf_t, star),
+    .post = NULL },
   { .name = ngx_string("captcha_charset"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_str_slot,
@@ -222,6 +227,8 @@ static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
     conf->length = NGX_CONF_UNSET_UINT;
     conf->size = NGX_CONF_UNSET_UINT;
     conf->width = NGX_CONF_UNSET_UINT;
+    conf->line = NGX_CONF_UNSET_UINT;
+    conf->star = NGX_CONF_UNSET_UINT;
     return conf;
 }
 
@@ -234,6 +241,8 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_uint_value(conf->length, prev->length, 4);
     ngx_conf_merge_uint_value(conf->size, prev->size, 20);
     ngx_conf_merge_uint_value(conf->width, prev->width, 130);
+    ngx_conf_merge_uint_value(conf->line, prev->line, 10);
+    ngx_conf_merge_uint_value(conf->star, prev->star, 100);
     ngx_conf_merge_str_value(conf->charset, prev->charset, "abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789");
     ngx_conf_merge_str_value(conf->csrf, prev->csrf, "csrf");
     ngx_conf_merge_str_value(conf->font, prev->font, "/usr/local/share/fonts/NimbusSans-Regular.ttf");
