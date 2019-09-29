@@ -30,20 +30,6 @@ static int mt_rand(int min, int max) {
     return (ngx_random() % (max - min + 1)) + min;
 }
 
-static u_char *ngx_http_captcha_png(ngx_http_request_t *r, int *size, u_char *code) {
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "captcha: %s", __func__);
-    ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
-    gdFTUseFontConfig(1);
-    gdImagePtr img = gdImageCreateTrueColor(location_conf->width, location_conf->height);
-    (void)gdImageFilledRectangle(img, 0, location_conf->height, location_conf->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
-    for (ngx_uint_t i = 0, brect[8], x = location_conf->width / location_conf->length; i < location_conf->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location_conf->font.data, location_conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location_conf->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
-    for (ngx_uint_t i = 0; i < location_conf->line; i++) (void)gdImageLine(img, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
-    for (ngx_uint_t i = 0, brect[8]; i < location_conf->star; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location_conf->font.data, 8, 0, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), "*");
-    u_char *out = (u_char *)gdImagePngPtrEx(img, size, -1);
-    (void)gdImageDestroy(img);
-    return out;
-}
-
 static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) return NGX_HTTP_NOT_ALLOWED;
     ngx_int_t rc = ngx_http_discard_request_body(r);
@@ -92,7 +78,14 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
         if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) return rc;
     }
     int size;
-    u_char *img_buf = ngx_http_captcha_png(r, &size, code);
+    gdFTUseFontConfig(1);
+    gdImagePtr img = gdImageCreateTrueColor(location_conf->width, location_conf->height);
+    (void)gdImageFilledRectangle(img, 0, location_conf->height, location_conf->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
+    for (ngx_uint_t i = 0, brect[8], x = location_conf->width / location_conf->length; i < location_conf->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location_conf->font.data, location_conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location_conf->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
+    for (ngx_uint_t i = 0; i < location_conf->line; i++) (void)gdImageLine(img, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
+    for (ngx_uint_t i = 0, brect[8]; i < location_conf->star; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location_conf->font.data, 8, 0, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), "*");
+    u_char *img_buf = (u_char *)gdImagePngPtrEx(img, &size, -1);
+    (void)gdImageDestroy(img);
     if (!img_buf) size = 0; else {
         ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, 0);
         if (!cln) { (void)gdFree(img_buf); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
