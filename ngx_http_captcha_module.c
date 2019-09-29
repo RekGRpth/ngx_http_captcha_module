@@ -88,22 +88,20 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     u_char *img_buf = (u_char *)gdImagePngPtrEx(img, &size, location_conf->level);
     (void)gdImageDestroy(img);
     ngx_buf_t *b = ngx_create_temp_buf(r->pool, size);
-    if (!b) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); goto gdFree; }
-    ngx_chain_t *chain = ngx_alloc_chain_link(r->pool);
-    if (!chain) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); goto gdFree; }
-    chain->buf = b;
+    if (!b) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); gdFree(img_buf); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     b->memory = 1;
+    b->last_buf = 1;
     b->last = ngx_copy(b->last, img_buf, size);
     gdFree(img_buf);
-    if (b->last != b->end) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); goto gdFree; }
+    if (b->last != b->end) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    ngx_chain_t *chain = ngx_alloc_chain_link(r->pool);
+    if (!chain) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    chain->buf = b;
     chain->next = NULL;
     r->headers_out.content_length_n = size;
     rc = ngx_http_send_header(r);
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) return rc;
     return ngx_http_output_filter(r, chain);
-gdFree:
-    gdFree(img_buf);
-    return NGX_HTTP_INTERNAL_SERVER_ERROR;
 }
 
 static char *ngx_http_captcha_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
