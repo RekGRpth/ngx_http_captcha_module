@@ -224,7 +224,7 @@ static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
 static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child) {
     ngx_http_captcha_location_conf_t *prev = parent;
     ngx_http_captcha_location_conf_t *conf = child;
-    ngx_conf_merge_value(conf->icase, prev->icase, 0);
+    ngx_conf_merge_value(conf->icase, prev->icase, 1);
     ngx_conf_merge_uint_value(conf->expire, prev->expire, 300);
     ngx_conf_merge_uint_value(conf->height, prev->height, 30);
     ngx_conf_merge_uint_value(conf->length, prev->length, 4);
