@@ -37,7 +37,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (rc != NGX_OK && rc != NGX_AGAIN) return rc;
     ngx_http_captcha_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
     u_char *code = ngx_pnalloc(r->pool, location_conf->length + 1);
-    if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     for (size_t i = 0; i < location_conf->length; i++) code[i] = location_conf->charset.data[mt_rand(0, location_conf->charset.len - 1)];
     code[location_conf->length] = '\0';
     ngx_http_variable_value_t *csrf = ngx_http_get_indexed_variable(r, location_conf->cookie);
@@ -48,7 +48,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     if (location_conf->icase) {
         u_char *icode = ngx_pnalloc(r->pool, location_conf->length);
-        if (!icode) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+        if (!icode) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
         (void)ngx_strlow(icode, code, location_conf->length);
         code = icode;
     }
@@ -63,14 +63,14 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     (u_char *)ngx_hex_dump(hash, bhash, MD5_BHASH_LEN);
     hash[MD5_HASH_LEN] = '\0';
     ngx_table_elt_t *set_cookie_name = ngx_list_push(&r->headers_out.headers);
-    if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     set_cookie_name->hash = 1;
     ngx_str_set(&set_cookie_name->key, "Set-Cookie");
     set_cookie_name->value.len = location_conf->name.len + MD5_HASH_LEN + sizeof("%V=%s; Max-Age=%d") - 1 - 6;
     for (ngx_uint_t number = location_conf->expire; number /= 10; set_cookie_name->value.len++);
     set_cookie_name->value.len++;
-    if (!(set_cookie_name->value.data = ngx_pnalloc(r->pool, set_cookie_name->value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    if (ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%d", &location_conf->name, hash, location_conf->expire) != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!(set_cookie_name->value.data = ngx_pnalloc(r->pool, set_cookie_name->value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%d", &location_conf->name, hash, location_conf->expire) != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_snprintf"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     ngx_str_set(&r->headers_out.content_type, "image/png");
     r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.content_length_n = 0;
@@ -80,7 +80,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     gdFTUseFontConfig(1);
     gdImagePtr img = gdImageCreateTrueColor(location_conf->width, location_conf->height);
-    if (!img) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!img) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!gdImageCreateTrueColor"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     (void)gdImageFilledRectangle(img, 0, location_conf->height, location_conf->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
     for (ngx_uint_t i = 0, brect[8], x = location_conf->width / location_conf->length; i < location_conf->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location_conf->font.data, location_conf->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location_conf->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
     for (ngx_uint_t i = 0; i < location_conf->line; i++) (void)gdImageLine(img, mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), mt_rand(0, location_conf->width), mt_rand(0, location_conf->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
@@ -88,16 +88,16 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     int size;
     u_char *img_buf = (u_char *)gdImagePngPtrEx(img, &size, location_conf->level);
     (void)gdImageDestroy(img);
-    if (!img_buf) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!img_buf) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!gdImagePngPtrEx"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     ngx_buf_t *b = ngx_create_temp_buf(r->pool, size);
-    if (!b) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); gdFree(img_buf); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!b) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_create_temp_buf"); gdFree(img_buf); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     b->memory = 1;
     b->last_buf = 1;
     b->last = ngx_copy(b->last, img_buf, size);
     gdFree(img_buf);
-    if (b->last != b->end) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (b->last != b->end) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "b->last != b->end"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     ngx_chain_t *chain = ngx_alloc_chain_link(r->pool);
-    if (!chain) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!chain) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_alloc_chain_link"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     chain->buf = b;
     chain->next = NULL;
     r->headers_out.content_length_n = size;
@@ -251,8 +251,8 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     } else {
         ngx_str_t name;
         name.len = conf->csrf.len + sizeof("cookie_%V") - 1 - 2;
-        if (!(name.data = ngx_pnalloc(cf->pool, name.len))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
-        if (ngx_snprintf(name.data, name.len, "cookie_%V", &conf->csrf) != name.data + name.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
+        if (!(name.data = ngx_pnalloc(cf->pool, name.len))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "!ngx_pnalloc"); return NGX_CONF_ERROR; }
+        if (ngx_snprintf(name.data, name.len, "cookie_%V", &conf->csrf) != name.data + name.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "ngx_snprintf"); return NGX_CONF_ERROR; }
         ngx_int_t index = ngx_http_get_variable_index(cf, &name);
         if (index == NGX_ERROR) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: invalid cookie \"%V\"", &name); return NGX_CONF_ERROR; }
         conf->cookie = (ngx_uint_t) index;
@@ -264,7 +264,6 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
         index = ngx_http_get_variable_index(cf, &name);
         if (index == NGX_ERROR) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: invalid arg \"%V\"", &name); return NGX_CONF_ERROR; }
         conf->arg = (ngx_uint_t) index;
-//        if (ngx_pfree(cf->pool, name.data - 3) != NGX_OK) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
     }
     return NGX_CONF_OK;
 }
