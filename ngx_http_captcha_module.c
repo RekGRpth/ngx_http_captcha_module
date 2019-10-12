@@ -239,22 +239,22 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_str_value(conf->font, prev->font, "/usr/local/share/fonts/NimbusSans-Regular.ttf");
     ngx_conf_merge_str_value(conf->name, prev->name, "Captcha");
     ngx_conf_merge_str_value(conf->secret, prev->secret, "secret");
-    if (conf->size > conf->height) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha size is too large"); return NGX_CONF_ERROR; }
-    if (!conf->name.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha name cannot be empty"); return NGX_CONF_ERROR; }
-    if (!conf->secret.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha secret cannot be empty"); return NGX_CONF_ERROR; }
-    if (!conf->font.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha font cannot be empty"); return NGX_CONF_ERROR; }
-    if (!conf->charset.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha charset cannot be empty"); return NGX_CONF_ERROR; }
-    if (!conf->csrf.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha csrf cannot be empty"); return NGX_CONF_ERROR; }
+    if (conf->size > conf->height) return "captcha size is too large";
+    if (!conf->name.len) return "captcha name cannot be empty";
+    if (!conf->secret.len) return "captcha secret cannot be empty";
+    if (!conf->font.len) return "captcha font cannot be empty";
+    if (!conf->charset.len) return "captcha charset cannot be empty";
+    if (!conf->csrf.len) return "captcha csrf cannot be empty";
     if (prev->cookie && prev->arg) {
         conf->cookie = prev->cookie;
         conf->arg = prev->arg;
     } else {
         ngx_str_t name;
         name.len = conf->csrf.len + sizeof("cookie_%V") - 1 - 2;
-        if (!(name.data = ngx_pnalloc(cf->pool, name.len))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "!ngx_pnalloc"); return NGX_CONF_ERROR; }
-        if (ngx_snprintf(name.data, name.len, "cookie_%V", &conf->csrf) != name.data + name.len) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "ngx_snprintf"); return NGX_CONF_ERROR; }
+        if (!(name.data = ngx_pnalloc(cf->pool, name.len))) return "!ngx_pnalloc";
+        if (ngx_snprintf(name.data, name.len, "cookie_%V", &conf->csrf) != name.data + name.len) return "ngx_snprintf";
         ngx_int_t index = ngx_http_get_variable_index(cf, &name);
-        if (index == NGX_ERROR) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: invalid cookie \"%V\"", &name); return NGX_CONF_ERROR; }
+        if (index == NGX_ERROR) return "ngx_http_get_variable_index == NGX_ERROR";
         conf->cookie = (ngx_uint_t) index;
         name.data += 3;
         name.len -= 3;
@@ -262,13 +262,13 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
         name.data[1] = 'r';
         name.data[2] = 'g';
         index = ngx_http_get_variable_index(cf, &name);
-        if (index == NGX_ERROR) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: invalid arg \"%V\"", &name); return NGX_CONF_ERROR; }
+        if (index == NGX_ERROR) return "ngx_http_get_variable_index == NGX_ERROR";
         conf->arg = (ngx_uint_t) index;
     }
     return NGX_CONF_OK;
 }
 
-static ngx_http_module_t ngx_http_captcha_module_ctx = {
+static ngx_http_module_t ngx_http_captcha_ctx = {
     .preconfiguration = NULL,
     .postconfiguration = NULL,
     .create_main_conf = NULL,
@@ -281,7 +281,7 @@ static ngx_http_module_t ngx_http_captcha_module_ctx = {
 
 ngx_module_t ngx_http_captcha_module = {
     NGX_MODULE_V1,
-    .ctx = &ngx_http_captcha_module_ctx,
+    .ctx = &ngx_http_captcha_ctx,
     .commands = ngx_http_captcha_commands,
     .type = NGX_HTTP_MODULE,
     .init_master = NULL,
