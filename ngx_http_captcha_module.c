@@ -208,7 +208,7 @@ static ngx_command_t ngx_http_captcha_commands[] = {
 
 static void *ngx_http_captcha_create_loc_conf(ngx_conf_t *cf) {
     ngx_http_captcha_location_conf_t *location_conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_captcha_location_conf_t));
-    if (!location_conf) return NGX_CONF_ERROR;
+    if (!location_conf) return NULL
     location_conf->icase = NGX_CONF_UNSET;
     location_conf->expire = NGX_CONF_UNSET_UINT;
     location_conf->height = NGX_CONF_UNSET_UINT;
