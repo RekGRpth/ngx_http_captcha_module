@@ -96,14 +96,11 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     b->last = ngx_copy(b->last, img_buf, size);
     gdFree(img_buf);
     if (b->last != b->end) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "b->last != b->end"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    ngx_chain_t *chain = ngx_alloc_chain_link(r->pool);
-    if (!chain) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_alloc_chain_link"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    chain->buf = b;
-    chain->next = NULL;
     r->headers_out.content_length_n = size;
     rc = ngx_http_send_header(r);
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) return rc;
-    return ngx_http_output_filter(r, chain);
+    ngx_chain_t cl = {.buf = b, .next = NULL};
+    return ngx_http_output_filter(r, &cl);
 }
 
 static char *ngx_http_captcha_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
