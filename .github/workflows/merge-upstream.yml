@@ -9,6 +9,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - uses: exions/merge-upstream@v1
+      - uses: rekgrpth/merge-upstream@v2
         with:
           upstream: dengqiang2015/ngx_http_captcha_module
