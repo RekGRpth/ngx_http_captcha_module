@@ -13,7 +13,7 @@ typedef struct {
     ngx_str_t csrf;
     ngx_str_t font;
     ngx_str_t name;
-    ngx_str_t secret;
+    ngx_http_complex_value_t *secret;
     ngx_uint_t arg;
     ngx_uint_t cookie;
     ngx_uint_t expire;
@@ -54,7 +54,10 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     ngx_md5_t md5;
     (void)ngx_md5_init(&md5);
-    (void)ngx_md5_update(&md5, (const void *)location->secret.data, location->secret.len);
+    ngx_str_t               secretval;
+    ngx_http_complex_value(r, location->secret, &secretval);
+    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "secret0 %s", code);
+    (void)ngx_md5_update(&md5, (const void *)&secretval, secretval.len);
     (void)ngx_md5_update(&md5, (const void *)code, (size_t)location->length);
     (void)ngx_md5_update(&md5, (const void *)csrf->data, csrf->len);
     u_char bhash[MD5_BHASH_LEN];
@@ -196,7 +199,7 @@ static ngx_command_t ngx_http_captcha_commands[] = {
     .post = NULL },
   { .name = ngx_string("captcha_secret"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
-    .set = ngx_conf_set_str_slot,
+    .set = ngx_http_set_complex_value_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_t, secret),
     .post = NULL },
@@ -235,10 +238,11 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_str_value(conf->csrf, prev->csrf, "csrf");
     ngx_conf_merge_str_value(conf->font, prev->font, "/usr/local/share/fonts/NimbusSans-Regular.ttf");
     ngx_conf_merge_str_value(conf->name, prev->name, "Captcha");
-    ngx_conf_merge_str_value(conf->secret, prev->secret, "secret");
+    if (conf->secret == NULL) {
+        conf->secret = prev->secret;
+    }
     if (conf->size > conf->height) return "captcha size is too large";
     if (!conf->name.len) return "captcha name cannot be empty";
-    if (!conf->secret.len) return "captcha secret cannot be empty";
     if (!conf->font.len) return "captcha font cannot be empty";
     if (!conf->charset.len) return "captcha charset cannot be empty";
     if (!conf->csrf.len) return "captcha csrf cannot be empty";
