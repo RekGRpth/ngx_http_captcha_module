@@ -36,6 +36,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     ngx_int_t rc = ngx_http_discard_request_body(r);
     if (rc != NGX_OK && rc != NGX_AGAIN) return rc;
     ngx_http_captcha_location_t *location = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
+    if (!location->secret)  { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!location->secret"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     u_char *code = ngx_pnalloc(r->pool, location->length + 1);
     if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     for (size_t i = 0; i < location->length; i++) code[i] = location->charset.data[mt_rand(0, location->charset.len - 1)];
@@ -54,10 +55,9 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     ngx_md5_t md5;
     (void)ngx_md5_init(&md5);
-    ngx_str_t               secretval;
-    ngx_http_complex_value(r, location->secret, &secretval);
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "secret0 %s", code);
-    (void)ngx_md5_update(&md5, (const void *)&secretval, secretval.len);
+    ngx_str_t secret;
+    if (ngx_http_complex_value(r, location->secret, &secret) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    (void)ngx_md5_update(&md5, (const void *)secret.data, secret.len);
     (void)ngx_md5_update(&md5, (const void *)code, (size_t)location->length);
     (void)ngx_md5_update(&md5, (const void *)csrf->data, csrf->len);
     u_char bhash[MD5_BHASH_LEN];
@@ -238,11 +238,10 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_str_value(conf->csrf, prev->csrf, "csrf");
     ngx_conf_merge_str_value(conf->font, prev->font, "/usr/local/share/fonts/NimbusSans-Regular.ttf");
     ngx_conf_merge_str_value(conf->name, prev->name, "Captcha");
-    if (conf->secret == NULL) {
-        conf->secret = prev->secret;
-    }
+    if (!conf->secret) conf->secret = prev->secret;
     if (conf->size > conf->height) return "captcha size is too large";
     if (!conf->name.len) return "captcha name cannot be empty";
+//    if (!conf->secret) return "captcha secret cannot be empty";
     if (!conf->font.len) return "captcha font cannot be empty";
     if (!conf->charset.len) return "captcha charset cannot be empty";
     if (!conf->csrf.len) return "captcha csrf cannot be empty";
