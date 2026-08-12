@@ -43,16 +43,17 @@ location =/login {
     Default: ——
     Context: location
 
-Enables generation of captcha image.<hr>
+Enables generation of captcha image. Only GET requests are accepted; any
+other method, including HEAD, gets a 405 response.<hr>
 
     Syntax:	 captcha_case on | off;
-    Default: off
+    Default: on
     Context: http, server, location
 
 Enables/disables ignoring captcha case.<hr>
 
     Syntax:	 captcha_expire seconds;
-    Default: 3600
+    Default: 300
     Context: http, server, location
 
 Sets seconds before expiring captcha.<hr>
@@ -81,6 +82,25 @@ Sets size of captcha font.<hr>
 
 Sets width of captcha image.<hr>
 
+    Syntax:	 captcha_line number;
+    Default: 10
+    Context: http, server, location
+
+Sets number of random noise lines drawn over the captcha image.<hr>
+
+    Syntax:	 captcha_star number;
+    Default: 100
+    Context: http, server, location
+
+Sets number of random noise stars ("*") drawn over the captcha image.<hr>
+
+    Syntax:	 captcha_level number;
+    Default: -1
+    Context: http, server, location
+
+Sets the PNG compression level, from 0 (none) to 9 (best); -1 uses zlib's
+default compression. Values outside -1..9 are clamped.<hr>
+
     Syntax:	 captcha_charset string;
     Default: abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789
     Context: http, server, location
@@ -94,7 +114,7 @@ Sets characters used in captcha text.<hr>
 Sets name of csrf var of captcha.<hr>
 
     Syntax:	 captcha_font string;
-    Default: /usr/share/fonts/ttf-liberation/LiberationSans-Regular.ttf
+    Default: /usr/local/share/fonts/NimbusSans-Regular.ttf
     Context: http, server, location
 
 Sets font of captcha text.<hr>
@@ -106,7 +126,9 @@ Sets font of captcha text.<hr>
 Sets name of captcha cookie.<hr>
 
     Syntax:	 captcha_secret string;
-    Default: secret
+    Default: ——
     Context: http, server, location
 
-Sets secret of captcha.
+Sets secret of captcha. Mandatory: a location that enables `captcha;`
+without a `captcha_secret` set anywhere in its config hierarchy will
+return a 500 for every request.
