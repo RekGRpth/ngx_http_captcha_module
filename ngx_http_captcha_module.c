@@ -85,9 +85,17 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     gdImagePtr img = gdImageCreateTrueColor(location->width, location->height);
     if (!img) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!gdImageCreateTrueColor"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     (void)gdImageFilledRectangle(img, 0, location->height, location->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
-    for (ngx_uint_t i = 0, brect[8], x = location->width / location->length; i < location->length; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location->font.data, location->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
+    char *gd_err;
+    ngx_uint_t gd_err_logged = 0;
+    for (ngx_uint_t i = 0, brect[8], x = location->width / location->length; i < location->length; i++) {
+        gd_err = gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location->font.data, location->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
+        if (gd_err && !gd_err_logged) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "gdImageStringFT: %s", gd_err); gd_err_logged = 1; }
+    }
     for (ngx_uint_t i = 0; i < location->line; i++) (void)gdImageLine(img, mt_rand(0, location->width), mt_rand(0, location->height), mt_rand(0, location->width), mt_rand(0, location->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
-    for (ngx_uint_t i = 0, brect[8]; i < location->star; i++) (char *)gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location->font.data, 8, 0, mt_rand(0, location->width), mt_rand(0, location->height), "*");
+    for (ngx_uint_t i = 0, brect[8]; i < location->star; i++) {
+        gd_err = gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location->font.data, 8, 0, mt_rand(0, location->width), mt_rand(0, location->height), "*");
+        if (gd_err && !gd_err_logged) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "gdImageStringFT: %s", gd_err); gd_err_logged = 1; }
+    }
     int size;
     u_char *img_buf = (u_char *)gdImagePngPtrEx(img, &size, location->level);
     (void)gdImageDestroy(img);
