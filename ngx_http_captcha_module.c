@@ -47,18 +47,18 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
         csrf = ngx_http_get_indexed_variable(r, location->arg);
         if (!csrf || !csrf->data || !csrf->len) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: no \"%V\" arg specified", &location->csrf); return NGX_HTTP_NOT_FOUND; }
     }
+    u_char *hash_code = code;
     if (location->icase) {
-        u_char *icode = ngx_pnalloc(r->pool, location->length);
-        if (!icode) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-        (void)ngx_strlow(icode, code, location->length);
-        code = icode;
+        hash_code = ngx_pnalloc(r->pool, location->length);
+        if (!hash_code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+        (void)ngx_strlow(hash_code, code, location->length);
     }
     ngx_md5_t md5;
     (void)ngx_md5_init(&md5);
     ngx_str_t secret;
     if (ngx_http_complex_value(r, location->secret, &secret) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     (void)ngx_md5_update(&md5, (const void *)secret.data, secret.len);
-    (void)ngx_md5_update(&md5, (const void *)code, (size_t)location->length);
+    (void)ngx_md5_update(&md5, (const void *)hash_code, (size_t)location->length);
     (void)ngx_md5_update(&md5, (const void *)csrf->data, csrf->len);
     u_char bhash[MD5_BHASH_LEN];
     (void)ngx_md5_final(bhash, &md5);
