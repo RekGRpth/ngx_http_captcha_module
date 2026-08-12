@@ -15,7 +15,7 @@ __DATA__
 
 === TEST 1: csrf accepted via Cookie header, not just arg
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -33,7 +33,7 @@ Content-Type: image/png
 
 === TEST 2: no csrf cookie and no csrf arg is rejected
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -50,7 +50,7 @@ captcha: no "csrf" arg specified
 
 === TEST 3: missing captcha_secret fails the request, not the config
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -65,7 +65,7 @@ GET /captcha?csrf=token
 
 === TEST 4: captcha_case off still renders normally
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -82,7 +82,7 @@ Content-Type: image/png
 
 === TEST 5: Set-Cookie reflects the configured name and expire
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -100,7 +100,7 @@ Set-Cookie: MyCaptcha=[0-9a-f]{32}; Max-Age=123
 
 === TEST 6: captcha_level above range is clamped, not rejected
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;

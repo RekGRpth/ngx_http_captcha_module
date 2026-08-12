@@ -15,7 +15,7 @@ __DATA__
 
 === TEST 1: captcha_length 0 must be rejected at config time, not crash a worker
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -34,7 +34,7 @@ captcha length cannot be zero
 
 === TEST 2: a sane captcha_length still generates a normal image (no regression)
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;

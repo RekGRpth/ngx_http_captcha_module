@@ -15,7 +15,7 @@ __DATA__
 
 === TEST 1: captcha_size larger than captcha_height is rejected
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -33,7 +33,7 @@ captcha size is too large
 
 === TEST 2: empty captcha_charset is rejected
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -50,7 +50,7 @@ captcha charset cannot be empty
 
 === TEST 3: empty captcha_font is rejected
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -67,7 +67,7 @@ captcha font cannot be empty
 
 === TEST 4: empty captcha_name is rejected
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
@@ -84,7 +84,7 @@ captcha name cannot be empty
 
 === TEST 5: empty captcha_csrf is rejected
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;

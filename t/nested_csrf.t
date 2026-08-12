@@ -15,7 +15,7 @@ __DATA__
 
 === TEST 1: outer location uses its own captcha_csrf name
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location /a {
         captcha;
@@ -38,7 +38,7 @@ Content-Type: image/png
 
 === TEST 2: nested location must use its own captcha_csrf name, not the parent's
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location /a {
         captcha;
@@ -61,7 +61,7 @@ Content-Type: image/png
 
 === TEST 3: nested location must reject the parent's csrf arg name
 --- main_config
-    load_module /var/cache/nginx/src/ngx_http_captcha_module/t/build/ngx_http_captcha_module.so;
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location /a {
         captcha;
