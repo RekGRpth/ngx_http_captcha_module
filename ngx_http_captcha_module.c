@@ -51,9 +51,10 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     u_char *hash_code = code;
     if (location->icase) {
-        hash_code = ngx_pnalloc(r->pool, location->length);
+        hash_code = ngx_pnalloc(r->pool, location->length + 1);
         if (!hash_code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
         (void)ngx_strlow(hash_code, code, location->length);
+        hash_code[location->length] = '\0';
     }
     ngx_md5_t md5;
     (void)ngx_md5_init(&md5);
@@ -71,11 +72,11 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     set_cookie_name->hash = 1;
     ngx_str_set(&set_cookie_name->key, "Set-Cookie");
-    set_cookie_name->value.len = location->name.len + MD5_HASH_LEN + sizeof("%V=%s; Max-Age=%d") - 1 - 6;
+    set_cookie_name->value.len = location->name.len + MD5_HASH_LEN + sizeof("%V=%s; Max-Age=%ui") - 1 - 7;
     for (ngx_uint_t number = location->expire; number /= 10; set_cookie_name->value.len++);
     set_cookie_name->value.len++;
     if (!(set_cookie_name->value.data = ngx_pnalloc(r->pool, set_cookie_name->value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    if (ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%d", &location->name, hash, location->expire) != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_snprintf"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%ui", &location->name, hash, location->expire) != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_snprintf"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     ngx_str_set(&r->headers_out.content_type, "image/png");
     r->headers_out.status = NGX_HTTP_OK;
     if (!ngx_http_captcha_ft_inited) {
