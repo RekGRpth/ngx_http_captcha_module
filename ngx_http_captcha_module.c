@@ -34,7 +34,7 @@ static int mt_rand(int min, int max) {
 static ngx_flag_t ngx_http_captcha_ft_inited = 0;
 
 static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
-    if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) return NGX_HTTP_NOT_ALLOWED;
+    if (r->method != NGX_HTTP_GET) return NGX_HTTP_NOT_ALLOWED;
     ngx_int_t rc = ngx_http_discard_request_body(r);
     if (rc != NGX_OK && rc != NGX_AGAIN) return rc;
     ngx_http_captcha_location_t *location = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
@@ -78,11 +78,6 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (ngx_snprintf(set_cookie_name->value.data, set_cookie_name->value.len, "%V=%s; Max-Age=%d", &location->name, hash, location->expire) != set_cookie_name->value.data + set_cookie_name->value.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_snprintf"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     ngx_str_set(&r->headers_out.content_type, "image/png");
     r->headers_out.status = NGX_HTTP_OK;
-    r->headers_out.content_length_n = 0;
-    if (r->method == NGX_HTTP_HEAD) {
-        rc = ngx_http_send_header(r);
-        if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) return rc;
-    }
     if (!ngx_http_captcha_ft_inited) {
         ngx_http_captcha_ft_inited = 1;
         if (!gdFTUseFontConfig(1)) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: gd was built without fontconfig support, captcha_font must be a literal font file path"); }
