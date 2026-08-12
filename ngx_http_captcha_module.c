@@ -240,6 +240,7 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_str_value(conf->name, prev->name, "Captcha");
     if (!conf->secret) conf->secret = prev->secret;
     if (conf->size > conf->height) return "captcha size is too large";
+    if (!conf->length) return "captcha length cannot be zero";
     if (!conf->name.len) return "captcha name cannot be empty";
 //    if (!conf->secret) return "captcha secret cannot be empty";
     if (!conf->font.len) return "captcha font cannot be empty";
