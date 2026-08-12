@@ -246,7 +246,7 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     if (!conf->font.len) return "captcha font cannot be empty";
     if (!conf->charset.len) return "captcha charset cannot be empty";
     if (!conf->csrf.len) return "captcha csrf cannot be empty";
-    if (prev->cookie && prev->arg) {
+    if (prev->cookie && prev->arg && conf->csrf.len == prev->csrf.len && !ngx_strncmp(conf->csrf.data, prev->csrf.data, conf->csrf.len)) {
         conf->cookie = prev->cookie;
         conf->arg = prev->arg;
     } else {
