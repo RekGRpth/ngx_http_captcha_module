@@ -31,6 +31,8 @@ static int mt_rand(int min, int max) {
     return (ngx_random() % (max - min + 1)) + min;
 }
 
+static ngx_flag_t ngx_http_captcha_ft_inited = 0;
+
 static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) return NGX_HTTP_NOT_ALLOWED;
     ngx_int_t rc = ngx_http_discard_request_body(r);
@@ -81,7 +83,10 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
         rc = ngx_http_send_header(r);
         if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) return rc;
     }
-    gdFTUseFontConfig(1);
+    if (!ngx_http_captcha_ft_inited) {
+        ngx_http_captcha_ft_inited = 1;
+        if (!gdFTUseFontConfig(1)) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: gd was built without fontconfig support, captcha_font must be a literal font file path"); }
+    }
     gdImagePtr img = gdImageCreateTrueColor(location->width, location->height);
     if (!img) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!gdImageCreateTrueColor"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     (void)gdImageFilledRectangle(img, 0, location->height, location->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
