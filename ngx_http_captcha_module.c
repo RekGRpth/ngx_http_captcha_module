@@ -14,6 +14,7 @@ typedef struct {
     ngx_str_t font;
     ngx_str_t name;
     ngx_http_complex_value_t *answer;
+    ngx_http_complex_value_t *flags;
     ngx_http_complex_value_t *secret;
     ngx_uint_t arg;
     ngx_uint_t captcha;
@@ -84,12 +85,15 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     set_cookie_name->hash = 1;
     ngx_str_set(&set_cookie_name->key, "Set-Cookie");
-    u_char *value = ngx_pnalloc(r->pool, location->name.len + sizeof("=.; Max-Age=") - 1 + NGX_TIME_T_LEN + MD5_HASH_LEN + NGX_INT_T_LEN);
+    ngx_str_t flags = ngx_string("Path=/; HttpOnly; SameSite=Lax");
+    if (location->flags && ngx_http_complex_value(r, location->flags, &flags) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    u_char *value = ngx_pnalloc(r->pool, location->name.len + sizeof("=.; Max-Age=; ") - 1 + NGX_TIME_T_LEN + MD5_HASH_LEN + NGX_INT_T_LEN + flags.len);
     if (!value) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     u_char *expires = ngx_sprintf(value, "%V=", &location->name);
     u_char *last = ngx_sprintf(expires, "%T.", ngx_time() + (time_t)location->expire);
     if (ngx_http_captcha_hash(r, location, expires, last - expires, code, location->length, csrf, last) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
     last = ngx_sprintf(last + MD5_HASH_LEN, "; Max-Age=%ui", location->expire);
+    if (flags.len) last = ngx_sprintf(last, "; %V", &flags);
     set_cookie_name->value.data = value;
     set_cookie_name->value.len = last - value;
     ngx_str_set(&r->headers_out.content_type, "image/png");
@@ -244,6 +248,12 @@ static ngx_command_t ngx_http_captcha_commands[] = {
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_t, csrf),
     .post = NULL },
+  { .name = ngx_string("captcha_flags"),
+    .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+    .set = ngx_http_set_complex_value_slot,
+    .conf = NGX_HTTP_LOC_CONF_OFFSET,
+    .offset = offsetof(ngx_http_captcha_location_t, flags),
+    .post = NULL },
   { .name = ngx_string("captcha_font"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_str_slot,
@@ -298,6 +308,7 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_str_value(conf->font, prev->font, "/usr/local/share/fonts/NimbusSans-Regular.ttf");
     ngx_conf_merge_str_value(conf->name, prev->name, "Captcha");
     if (!conf->answer) conf->answer = prev->answer;
+    if (!conf->flags) conf->flags = prev->flags;
     if (!conf->secret) conf->secret = prev->secret;
     if (conf->size > conf->height) return "captcha size is too large";
     if (!conf->length) return "captcha length cannot be zero";

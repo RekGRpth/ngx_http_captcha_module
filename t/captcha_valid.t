@@ -216,4 +216,4 @@ valid=0
 --- request
 GET /captcha?csrf=token
 --- response_headers_like eval
-"Set-Cookie: Captcha=(?:" . join("|", map { main::captcha_cookie($_, "aaaa", "token") } ($main::future .. $main::future + 30)) . "); Max-Age=300"
+"Set-Cookie: Captcha=(?:" . CORE::join("|", map { main::captcha_cookie($_, "aaaa", "token") } ($main::future .. $main::future + 30)) . "); Max-Age=300; Path=/; HttpOnly; SameSite=Lax"

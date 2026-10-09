@@ -5,7 +5,7 @@ use Test::Nginx::Socket;
 
 repeat_each(1);
 
-plan tests => repeat_each() * 13;
+plan tests => repeat_each() * 17;
 
 no_long_string();
 
@@ -94,7 +94,7 @@ Content-Type: image/png
 GET /captcha?csrf=token
 --- error_code: 200
 --- response_headers_like
-Set-Cookie: MyCaptcha=\d+\.[0-9a-f]{32}; Max-Age=123
+Set-Cookie: MyCaptcha=\d+\.[0-9a-f]{32}; Max-Age=123; Path=/; HttpOnly; SameSite=Lax
 
 
 
@@ -115,3 +115,37 @@ Content-Type: image/png
 
 
 
+
+
+
+=== TEST 7: captcha_flags replaces the default cookie attributes and accepts variables
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        captcha_flags "Path=$uri; Secure; SameSite=Strict";
+    }
+--- request
+GET /captcha?csrf=token
+--- error_code: 200
+--- response_headers_like
+Set-Cookie: Captcha=\d+\.[0-9a-f]{32}; Max-Age=300; Path=/captcha; Secure; SameSite=Strict
+
+
+
+=== TEST 8: empty captcha_flags adds no cookie attributes
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        captcha_flags "";
+    }
+--- request
+GET /captcha?csrf=token
+--- error_code: 200
+--- response_headers_like
+Set-Cookie: Captcha=\d+\.[0-9a-f]{32}; Max-Age=300

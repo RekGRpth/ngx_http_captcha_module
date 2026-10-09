@@ -129,6 +129,14 @@ Sets characters used in captcha text.<hr>
 
 Sets name of csrf var of captcha.<hr>
 
+    Syntax:	 captcha_flags string;
+    Default: Path=/; HttpOnly; SameSite=Lax
+    Context: http, server, location
+
+Sets attributes appended to the captcha cookie after `Max-Age`. The value can
+contain variables. Add `Secure` when the site is served over HTTPS (including
+behind a TLS-terminating proxy). An empty string adds no attributes.<hr>
+
     Syntax:	 captcha_font string;
     Default: /usr/local/share/fonts/NimbusSans-Regular.ttf
     Context: http, server, location
