@@ -218,13 +218,21 @@ static char *ngx_http_captcha_not_empty(ngx_conf_t *cf, void *data, void *conf) 
     return str->len ? NGX_CONF_OK : "cannot be empty";
 }
 
-static char *ngx_http_captcha_not_zero(ngx_conf_t *cf, void *data, void *conf) {
+static char *ngx_http_captcha_bounds(ngx_conf_t *cf, void *data, void *conf) {
+    ngx_conf_num_bounds_t *bounds = data;
     ngx_uint_t *num = conf;
-    return *num ? NGX_CONF_OK : "cannot be zero";
+    if (*num >= (ngx_uint_t)bounds->low && *num <= (ngx_uint_t)bounds->high) return NGX_CONF_OK;
+    u_char *err = ngx_pnalloc(cf->pool, sizeof("must be between  and ") + 2 * NGX_INT_T_LEN);
+    if (!err) return NGX_CONF_ERROR;
+    (void)ngx_sprintf(err, "must be between %i and %i%Z", bounds->low, bounds->high);
+    return (char *)err;
 }
 
 static ngx_conf_post_t ngx_http_captcha_not_empty_post = { ngx_http_captcha_not_empty };
-static ngx_conf_post_t ngx_http_captcha_not_zero_post = { ngx_http_captcha_not_zero };
+// keeps image dimensions far below INT_MAX, since gd and mt_rand() take int
+static ngx_conf_num_bounds_t ngx_http_captcha_pixels_bounds = { ngx_http_captcha_bounds, 1, 65535 };
+// keeps ngx_time() + expire from overflowing time_t
+static ngx_conf_num_bounds_t ngx_http_captcha_expire_bounds = { ngx_http_captcha_bounds, 0, NGX_MAX_INT32_VALUE };
 
 static ngx_command_t ngx_http_captcha_commands[] = {
   { .name = ngx_string("captcha"),
@@ -250,31 +258,31 @@ static ngx_command_t ngx_http_captcha_commands[] = {
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_t, expire),
-    .post = NULL },
+    .post = &ngx_http_captcha_expire_bounds },
   { .name = ngx_string("captcha_height"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_t, height),
-    .post = NULL },
+    .post = &ngx_http_captcha_pixels_bounds },
   { .name = ngx_string("captcha_length"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_t, length),
-    .post = &ngx_http_captcha_not_zero_post },
+    .post = &ngx_http_captcha_pixels_bounds },
   { .name = ngx_string("captcha_size"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_t, size),
-    .post = NULL },
+    .post = &ngx_http_captcha_pixels_bounds },
   { .name = ngx_string("captcha_width"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_t, width),
-    .post = NULL },
+    .post = &ngx_http_captcha_pixels_bounds },
   { .name = ngx_string("captcha_line"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_num_slot,
@@ -369,6 +377,7 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     if (!conf->secret) conf->secret = prev->secret;
     // empty and zero values are rejected by the directives' post handlers, where the error points at the right line
     if (conf->size > conf->height) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha_size %ui is larger than captcha_height %ui", conf->size, conf->height); return NGX_CONF_ERROR; }
+    if (conf->width < conf->length) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha_width %ui is smaller than captcha_length %ui", conf->width, conf->length); return NGX_CONF_ERROR; }
 //    if (!conf->secret) return "captcha secret cannot be empty";
     if (prev->cookie && prev->arg && conf->csrf.len == prev->csrf.len && !ngx_strncmp(conf->csrf.data, prev->csrf.data, conf->csrf.len)) {
         conf->cookie = prev->cookie;

@@ -73,31 +73,33 @@ Enables/disables ignoring captcha case.<hr>
     Default: 300
     Context: http, server, location
 
-Sets seconds before expiring captcha.<hr>
+Sets seconds before expiring captcha, from 0 to 2147483647.<hr>
 
     Syntax:	 captcha_height pixels;
     Default: 30
     Context: http, server, location
 
-Sets height of captcha image.<hr>
+Sets height of captcha image, from 1 to 65535.<hr>
 
     Syntax:	 captcha_length characters;
     Default: 4
     Context: http, server, location
 
-Sets length of captcha text.<hr>
+Sets length of captcha text, from 1 to 65535 and not more than
+`captcha_width`.<hr>
 
     Syntax:	 captcha_size pixels;
     Default: 20
     Context: http, server, location
 
-Sets size of captcha font.<hr>
+Sets size of captcha font, from 1 to 65535 and not more than
+`captcha_height`.<hr>
 
     Syntax:	 captcha_width pixels;
     Default: 130
     Context: http, server, location
 
-Sets width of captcha image.<hr>
+Sets width of captcha image, from 1 to 65535.<hr>
 
     Syntax:	 captcha_line number;
     Default: 10

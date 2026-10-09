@@ -26,7 +26,7 @@ __DATA__
 GET /captcha
 --- must_die
 --- error_log
-"captcha_length" directive cannot be zero
+"captcha_length" directive must be between 1 and 65535
 --- no_error_log
 [error]
 
