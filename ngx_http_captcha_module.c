@@ -12,6 +12,7 @@
 typedef struct {
     ngx_flag_t icase;
     ngx_int_t level;
+    ngx_array_t *chars;
     ngx_str_t charset;
     ngx_str_t csrf;
     ngx_str_t font;
@@ -60,14 +61,22 @@ static ngx_int_t ngx_http_captcha_random(ngx_http_request_t *r, u_char *buf, siz
     return NGX_OK;
 }
 
-// picks code characters uniformly: values at or above the largest multiple of charset.len are rejected to avoid modulo bias
-static ngx_int_t ngx_http_captcha_code(ngx_http_request_t *r, ngx_http_captcha_location_t *location, u_char *code) {
-    uint32_t limit = UINT32_MAX - UINT32_MAX % location->charset.len;
+// picks code characters (UTF-8 sequences) uniformly: values at or above the largest multiple of the charset size are rejected to avoid modulo bias
+static ngx_int_t ngx_http_captcha_code(ngx_http_request_t *r, ngx_http_captcha_location_t *location, ngx_str_t *chars, ngx_str_t *code) {
+    ngx_str_t *charset = location->chars->elts;
+    ngx_uint_t nelts = location->chars->nelts;
+    uint32_t limit = UINT32_MAX - UINT32_MAX % nelts;
+    code->len = 0;
     for (size_t i = 0; i < location->length; ) {
         uint32_t x;
         if (ngx_http_captcha_random(r, (u_char *)&x, sizeof(x)) != NGX_OK) return NGX_ERROR;
-        if (x < limit) code[i++] = location->charset.data[x % location->charset.len];
+        if (x >= limit) continue;
+        chars[i] = charset[x % nelts];
+        code->len += chars[i++].len;
     }
+    if (!(code->data = ngx_pnalloc(r->pool, code->len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_ERROR; }
+    u_char *p = code->data;
+    for (size_t i = 0; i < location->length; i++) p = ngx_cpymem(p, chars[i].data, chars[i].len);
     return NGX_OK;
 }
 
@@ -110,15 +119,18 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (rc != NGX_OK && rc != NGX_AGAIN) return rc;
     ngx_http_captcha_location_t *location = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);
     if (!location->secret)  { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!location->secret"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    u_char *code = ngx_pnalloc(r->pool, location->length + 1);
-    if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    if (ngx_http_captcha_code(r, location, code) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    code[location->length] = '\0';
+    ngx_str_t *chars = ngx_palloc(r->pool, location->length * sizeof(ngx_str_t));
+    if (!chars) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_palloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    ngx_str_t code;
+    if (ngx_http_captcha_code(r, location, chars, &code) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
     ngx_http_variable_value_t *csrf = ngx_http_captcha_csrf(r, location);
     if (!csrf) return NGX_HTTP_NOT_FOUND;
     ngx_table_elt_t *set_cookie_name = ngx_list_push(&r->headers_out.headers);
     if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     set_cookie_name->hash = 1;
+#if (nginx_version >= 1023000)
+    set_cookie_name->next = NULL;
+#endif
     ngx_str_set(&set_cookie_name->key, "Set-Cookie");
     ngx_str_t flags = ngx_string("Path=/; HttpOnly; SameSite=Lax");
     if (location->flags && ngx_http_complex_value(r, location->flags, &flags) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
@@ -126,7 +138,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (!value) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     u_char *expires = ngx_sprintf(value, "%V=", &location->name);
     u_char *last = ngx_sprintf(expires, "%T.", ngx_time() + (time_t)location->expire);
-    if (ngx_http_captcha_hash(r, location, expires, last - expires, code, location->length, csrf, last) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (ngx_http_captcha_hash(r, location, expires, last - expires, code.data, code.len, csrf, last) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
     last = ngx_sprintf(last + MD5_HASH_LEN, "; Max-Age=%ui", location->expire);
     if (flags.len) last = ngx_sprintf(last, "; %V", &flags);
     set_cookie_name->value.data = value;
@@ -148,16 +160,19 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     }
     gdImagePtr img = gdImageCreateTrueColor(location->width, location->height);
     if (!img) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!gdImageCreateTrueColor"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    (void)gdImageFilledRectangle(img, 0, location->height, location->width, 0, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
+    (void)gdImageFilledRectangle(img, 0, 0, location->width - 1, location->height - 1,gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
     char *gd_err;
     ngx_uint_t gd_err_logged = 0;
-    for (ngx_uint_t i = 0, brect[8], x = location->width / location->length; i < location->length; i++) {
-        gd_err = gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location->font.data, location->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location->height / 1.4, (char *)(u_char [2]){*code++, '\0'});
+    int brect[8];
+    for (ngx_uint_t i = 0, x = location->width / location->length; i < location->length; i++) {
+        u_char str[sizeof("\xf4\x8f\xbf\xbf")]; // the longest UTF-8 sequence plus '\0'
+        *ngx_cpymem(str, chars[i].data, chars[i].len) = '\0';
+        gd_err = gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location->font.data, location->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location->height / 1.4, (char *)str);
         if (gd_err && !gd_err_logged) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "gdImageStringFT: %s", gd_err); gd_err_logged = 1; }
     }
     for (ngx_uint_t i = 0; i < location->line; i++) (void)gdImageLine(img, mt_rand(0, location->width), mt_rand(0, location->height), mt_rand(0, location->width), mt_rand(0, location->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
-    for (ngx_uint_t i = 0, brect[8]; i < location->star; i++) {
-        gd_err = gdImageStringFT(img, (int *)brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location->font.data, 8, 0, mt_rand(0, location->width), mt_rand(0, location->height), "*");
+    for (ngx_uint_t i = 0; i < location->star; i++) {
+        gd_err = gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location->font.data, 8, 0, mt_rand(0, location->width), mt_rand(0, location->height), "*");
         if (gd_err && !gd_err_logged) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "gdImageStringFT: %s", gd_err); gd_err_logged = 1; }
     }
     int size;
@@ -228,7 +243,18 @@ static char *ngx_http_captcha_bounds(ngx_conf_t *cf, void *data, void *conf) {
     return (char *)err;
 }
 
+static char *ngx_http_captcha_charset(ngx_conf_t *cf, void *data, void *conf) {
+    ngx_str_t *charset = conf;
+    if (!charset->len) return "cannot be empty";
+    for (u_char *p = charset->data, *last = p + charset->len; p < last; ) {
+        if (*p < 0x80) p++;
+        else if (ngx_utf8_decode(&p, last - p) > 0x10ffff) return "must be valid UTF-8";
+    }
+    return NGX_CONF_OK;
+}
+
 static ngx_conf_post_t ngx_http_captcha_not_empty_post = { ngx_http_captcha_not_empty };
+static ngx_conf_post_t ngx_http_captcha_charset_post = { ngx_http_captcha_charset };
 // keeps image dimensions far below INT_MAX, since gd and mt_rand() take int
 static ngx_conf_num_bounds_t ngx_http_captcha_pixels_bounds = { ngx_http_captcha_bounds, 1, 65535 };
 // keeps ngx_time() + expire from overflowing time_t
@@ -306,7 +332,7 @@ static ngx_command_t ngx_http_captcha_commands[] = {
     .set = ngx_conf_set_str_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_t, charset),
-    .post = &ngx_http_captcha_not_empty_post },
+    .post = &ngx_http_captcha_charset_post },
   { .name = ngx_string("captcha_csrf"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     .set = ngx_conf_set_str_slot,
@@ -378,6 +404,17 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     // empty and zero values are rejected by the directives' post handlers, where the error points at the right line
     if (conf->size > conf->height) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha_size %ui is larger than captcha_height %ui", conf->size, conf->height); return NGX_CONF_ERROR; }
     if (conf->width < conf->length) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha_width %ui is smaller than captcha_length %ui", conf->width, conf->length); return NGX_CONF_ERROR; }
+    // split charset into UTF-8 characters (it is validated by the directive's post handler), reusing the parent's split when inherited
+    if (prev->chars && conf->charset.data == prev->charset.data && conf->charset.len == prev->charset.len) conf->chars = prev->chars; else {
+        if (!(conf->chars = ngx_array_create(cf->pool, conf->charset.len, sizeof(ngx_str_t)))) return "!ngx_array_create";
+        for (u_char *p = conf->charset.data, *last = p + conf->charset.len; p < last; ) {
+            ngx_str_t *c = ngx_array_push(conf->chars);
+            if (!c) return "!ngx_array_push";
+            c->data = p;
+            if (*p < 0x80) p++; else (void)ngx_utf8_decode(&p, last - p);
+            c->len = p - c->data;
+        }
+    }
 //    if (!conf->secret) return "captcha secret cannot be empty";
     if (prev->cookie && prev->arg && conf->csrf.len == prev->csrf.len && !ngx_strncmp(conf->csrf.data, prev->csrf.data, conf->csrf.len)) {
         conf->cookie = prev->cookie;

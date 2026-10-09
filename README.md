@@ -124,7 +124,10 @@ default compression. Values outside -1..9 are clamped.<hr>
     Default: abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789
     Context: http, server, location
 
-Sets characters used in captcha text.<hr>
+Sets characters used in captcha text. The string must be valid UTF-8, and
+`captcha_length` counts characters, not bytes. `captcha_case` folds only ASCII
+letters, so for other scripts (e.g. Cyrillic) use letters of a single case.
+The font must contain glyphs for all characters.<hr>
 
     Syntax:	 captcha_csrf string;
     Default: csrf

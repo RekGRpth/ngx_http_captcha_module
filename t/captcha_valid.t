@@ -217,3 +217,19 @@ valid=0
 GET /captcha?csrf=token
 --- response_headers_like eval
 "Set-Cookie: Captcha=(?:" . CORE::join("|", map { main::captcha_cookie($_, "aaaa", "token") } ($main::future .. $main::future + 30)) . "); Max-Age=300; Path=/; HttpOnly; SameSite=Lax"
+
+
+
+=== TEST 12: UTF-8 charset produces whole characters, not split bytes
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        captcha_charset ж;
+    }
+--- request
+GET /captcha?csrf=token
+--- response_headers_like eval
+"Set-Cookie: Captcha=(?:" . CORE::join("|", map { main::captcha_cookie($_, "жжжж", "token") } ($main::future .. $main::future + 30)) . "); Max-Age=300; Path=/; HttpOnly; SameSite=Lax"

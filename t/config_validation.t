@@ -193,3 +193,20 @@ GET /captcha
 --- must_die
 --- error_log
 captcha_width 3 is smaller than captcha_length 4
+
+
+
+=== TEST 12: captcha_charset with invalid UTF-8 is rejected
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        captcha_charset "abÿcd";
+    }
+--- request
+GET /captcha
+--- must_die
+--- error_log
+"captcha_charset" directive must be valid UTF-8
