@@ -98,14 +98,14 @@ Set-Cookie: MyCaptcha=\d+\.[0-9a-f]{32}; Max-Age=123; Path=/; HttpOnly; SameSite
 
 
 
-=== TEST 6: captcha_level above range is clamped, not rejected
+=== TEST 6: captcha_level -1 (zlib's default compression) is accepted
 --- main_config
     load_module /etc/nginx/modules/ngx_http_captcha_module.so;
 --- config
     location = /captcha {
         captcha;
         captcha_secret secret;
-        captcha_level 99;
+        captcha_level -1;
     }
 --- request
 GET /captcha?csrf=token

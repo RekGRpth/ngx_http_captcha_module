@@ -210,3 +210,37 @@ GET /captcha
 --- must_die
 --- error_log
 "captcha_charset" directive must be valid UTF-8
+
+
+
+=== TEST 13: captcha_level above 9 is rejected
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        captcha_level 10;
+    }
+--- request
+GET /captcha
+--- must_die
+--- error_log
+"captcha_level" directive must be between -1 and 9
+
+
+
+=== TEST 14: captcha_level below -1 is rejected
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        captcha_level -2;
+    }
+--- request
+GET /captcha
+--- must_die
+--- error_log
+"captcha_level" directive must be between -1 and 9

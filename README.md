@@ -118,7 +118,7 @@ Sets number of random noise stars ("*") drawn over the captcha image.<hr>
     Context: http, server, location
 
 Sets the PNG compression level, from 0 (none) to 9 (best); -1 uses zlib's
-default compression. Values outside -1..9 are clamped.<hr>
+default compression. Other values are rejected.<hr>
 
     Syntax:	 captcha_charset string;
     Default: abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789

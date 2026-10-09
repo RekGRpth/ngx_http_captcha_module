@@ -246,6 +246,18 @@ static char *ngx_http_captcha_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *con
     return NGX_CONF_OK;
 }
 
+// ngx_conf_set_num_slot() rejects negative numbers, so -1 (zlib's default compression) needs its own handler
+static char *ngx_http_captcha_level(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
+    ngx_http_captcha_location_t *location = conf;
+    if (location->level != NGX_CONF_UNSET) return "is duplicate";
+    ngx_str_t *value = cf->args->elts;
+    if (value[1].len == sizeof("-1") - 1 && !ngx_strncmp(value[1].data, "-1", value[1].len)) { location->level = -1; return NGX_CONF_OK; }
+    ngx_int_t level = ngx_atoi(value[1].data, value[1].len);
+    if (level == NGX_ERROR || level > 9) return "must be between -1 and 9";
+    location->level = level;
+    return NGX_CONF_OK;
+}
+
 static char *ngx_http_captcha_not_empty(ngx_conf_t *cf, void *data, void *conf) {
     ngx_str_t *str = conf;
     return str->len ? NGX_CONF_OK : "cannot be empty";
@@ -341,7 +353,7 @@ static ngx_command_t ngx_http_captcha_commands[] = {
     .post = NULL },
   { .name = ngx_string("captcha_level"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
-    .set = ngx_conf_set_num_slot,
+    .set = ngx_http_captcha_level,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_captcha_location_t, level),
     .post = NULL },
@@ -411,7 +423,6 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_uint_value(conf->line, prev->line, 10);
     ngx_conf_merge_uint_value(conf->star, prev->star, 100);
     ngx_conf_merge_value(conf->level, prev->level, -1);
-    if (conf->level > 9) conf->level = 9; else if (conf->level < -1) conf->level = -1;
     ngx_conf_merge_str_value(conf->charset, prev->charset, "abcdefghkmnprstuvwxyzABCDEFGHKMNPRSTUVWXYZ23456789");
     ngx_conf_merge_str_value(conf->csrf, prev->csrf, "csrf");
     ngx_conf_merge_str_value(conf->font, prev->font, "/usr/local/share/fonts/NimbusSans-Regular.ttf");
