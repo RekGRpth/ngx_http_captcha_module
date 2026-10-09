@@ -143,7 +143,17 @@ static ngx_int_t ngx_http_captcha_hash(ngx_http_request_t *r, ngx_http_captcha_l
 }
 
 static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
-    if (r->method != NGX_HTTP_GET) return NGX_HTTP_NOT_ALLOWED;
+    if (r->method != NGX_HTTP_GET) {
+        ngx_table_elt_t *allow = ngx_list_push(&r->headers_out.headers);
+        if (!allow) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+        allow->hash = 1;
+#if (nginx_version >= 1023000)
+        allow->next = NULL;
+#endif
+        ngx_str_set(&allow->key, "Allow");
+        ngx_str_set(&allow->value, "GET");
+        return NGX_HTTP_NOT_ALLOWED;
+    }
     ngx_int_t rc = ngx_http_discard_request_body(r);
     if (rc != NGX_OK && rc != NGX_AGAIN) return rc;
     ngx_http_captcha_location_t *location = ngx_http_get_module_loc_conf(r, ngx_http_captcha_module);

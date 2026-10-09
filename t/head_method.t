@@ -5,7 +5,7 @@ use Test::Nginx::Socket;
 
 repeat_each(1);
 
-plan tests => repeat_each() * 2 * blocks();
+plan tests => repeat_each() * (2 * blocks() + 1);
 
 no_long_string();
 
@@ -24,6 +24,8 @@ __DATA__
 --- request
 HEAD /captcha?csrf=token
 --- error_code: 405
+--- response_headers
+Allow: GET
 --- no_error_log
 [error]
 
@@ -42,3 +44,20 @@ GET /captcha?csrf=token
 --- error_code: 200
 --- response_headers
 Content-Type: image/png
+
+
+
+=== TEST 3: POST is rejected with Allow: GET
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+    }
+--- request
+POST /captcha?csrf=token
+hello
+--- error_code: 405
+--- response_headers
+Allow: GET
