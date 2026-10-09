@@ -6,7 +6,7 @@ use Digest::MD5 qw(md5_hex);
 
 repeat_each(1);
 
-plan tests => repeat_each() * 2 * blocks();
+plan tests => repeat_each() * (2 * blocks() + 2);
 
 no_long_string();
 
@@ -184,6 +184,10 @@ valid=0
 GET /login?answer=abcd&csrf=token
 --- response_body
 valid=1
+--- error_log eval
+qr/\[info\] .*captcha: no "csrf" cookie specified, trying arg/
+--- no_error_log
+[warn]
 
 
 

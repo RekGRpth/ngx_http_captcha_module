@@ -108,13 +108,14 @@ static ngx_int_t ngx_http_captcha_code(ngx_http_request_t *r, ngx_http_captcha_l
     return NGX_OK;
 }
 
-static ngx_http_variable_value_t *ngx_http_captcha_csrf(ngx_http_request_t *r, ngx_http_captcha_location_t *location) {
+// level lets the image handler warn about a missing csrf while $captcha_valid, which runs on every check, only notes it
+static ngx_http_variable_value_t *ngx_http_captcha_csrf(ngx_http_request_t *r, ngx_http_captcha_location_t *location, ngx_uint_t level) {
     ngx_http_variable_value_t *csrf = ngx_http_get_indexed_variable(r, location->cookie);
     if (csrf && csrf->data && csrf->len) return csrf;
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: no \"%V\" cookie specified, trying arg...", &location->csrf);
+    ngx_log_error(level, r->connection->log, 0, "captcha: no \"%V\" cookie specified, trying arg...", &location->csrf);
     csrf = ngx_http_get_indexed_variable(r, location->arg);
     if (csrf && csrf->data && csrf->len) return csrf;
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: no \"%V\" arg specified", &location->csrf);
+    ngx_log_error(level, r->connection->log, 0, "captcha: no \"%V\" arg specified", &location->csrf);
     return NULL;
 }
 
@@ -151,7 +152,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (!chars) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_palloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     ngx_str_t code;
     if (ngx_http_captcha_code(r, location, chars, &code) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    ngx_http_variable_value_t *csrf = ngx_http_captcha_csrf(r, location);
+    ngx_http_variable_value_t *csrf = ngx_http_captcha_csrf(r, location, NGX_LOG_WARN);
     if (!csrf) return NGX_HTTP_NOT_FOUND;
     ngx_table_elt_t *set_cookie_name = ngx_list_push(&r->headers_out.headers);
     if (!set_cookie_name) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
@@ -227,7 +228,7 @@ static ngx_int_t ngx_http_captcha_valid_variable(ngx_http_request_t *r, ngx_http
     time_t expires = ngx_atotm(cookie->data, dot - cookie->data);
     if (expires == NGX_ERROR) { ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "captcha: invalid \"%V\" cookie", &location->name); return NGX_OK; }
     if (expires < ngx_time()) { ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "captcha: \"%V\" cookie expired", &location->name); return NGX_OK; }
-    ngx_http_variable_value_t *csrf = ngx_http_captcha_csrf(r, location);
+    ngx_http_variable_value_t *csrf = ngx_http_captcha_csrf(r, location, NGX_LOG_INFO);
     if (!csrf) return NGX_OK;
     ngx_str_t answer;
     if (ngx_http_complex_value(r, location->answer, &answer) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_ERROR; }
