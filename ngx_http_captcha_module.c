@@ -1,6 +1,9 @@
 #include <ngx_http.h>
 #include <ngx_md5.h>
 #include <gd.h>
+#if (NGX_HAVE_GETRANDOM)
+#include <sys/random.h>
+#endif
 
 #define M_PI 3.14159265358979323846
 #define MD5_BHASH_LEN 16
@@ -35,6 +38,38 @@ static int mt_rand(int min, int max) {
 }
 
 static ngx_flag_t ngx_http_captcha_ft_inited = 0;
+
+static ngx_int_t ngx_http_captcha_random(ngx_http_request_t *r, u_char *buf, size_t len) {
+#if (NGX_HAVE_GETRANDOM)
+    while (len) {
+        ssize_t n = getrandom(buf, len, 0);
+        if (n == -1) {
+            if (ngx_errno == NGX_EINTR) continue;
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno, "getrandom");
+            return NGX_ERROR;
+        }
+        buf += n;
+        len -= n;
+    }
+#elif (NGX_HAVE_ARC4RANDOM_BUF)
+    arc4random_buf(buf, len);
+#else
+    // no CSPRNG available: the code is predictable for anyone who can guess the worker's random() seed
+    for (size_t i = 0; i < len; i++) buf[i] = (u_char)ngx_random();
+#endif
+    return NGX_OK;
+}
+
+// picks code characters uniformly: values at or above the largest multiple of charset.len are rejected to avoid modulo bias
+static ngx_int_t ngx_http_captcha_code(ngx_http_request_t *r, ngx_http_captcha_location_t *location, u_char *code) {
+    uint32_t limit = UINT32_MAX - UINT32_MAX % location->charset.len;
+    for (size_t i = 0; i < location->length; ) {
+        uint32_t x;
+        if (ngx_http_captcha_random(r, (u_char *)&x, sizeof(x)) != NGX_OK) return NGX_ERROR;
+        if (x < limit) code[i++] = location->charset.data[x % location->charset.len];
+    }
+    return NGX_OK;
+}
 
 static ngx_http_variable_value_t *ngx_http_captcha_csrf(ngx_http_request_t *r, ngx_http_captcha_location_t *location) {
     ngx_http_variable_value_t *csrf = ngx_http_get_indexed_variable(r, location->cookie);
@@ -77,7 +112,7 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (!location->secret)  { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!location->secret"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     u_char *code = ngx_pnalloc(r->pool, location->length + 1);
     if (!code) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    for (size_t i = 0; i < location->length; i++) code[i] = location->charset.data[mt_rand(0, location->charset.len - 1)];
+    if (ngx_http_captcha_code(r, location, code) != NGX_OK) return NGX_HTTP_INTERNAL_SERVER_ERROR;
     code[location->length] = '\0';
     ngx_http_variable_value_t *csrf = ngx_http_captcha_csrf(r, location);
     if (!csrf) return NGX_HTTP_NOT_FOUND;

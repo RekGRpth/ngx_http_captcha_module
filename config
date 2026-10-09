@@ -1,5 +1,22 @@
 ngx_addon_name=ngx_http_captcha_module
 
+ngx_feature="getrandom()"
+ngx_feature_name="NGX_HAVE_GETRANDOM"
+ngx_feature_run=no
+ngx_feature_incs="#include <sys/random.h>"
+ngx_feature_path=
+ngx_feature_libs=
+ngx_feature_test="char buf[4]; if (getrandom(buf, sizeof(buf), 0) == -1) return 1;"
+. auto/feature
+
+if [ $ngx_found = no ]; then
+    ngx_feature="arc4random_buf()"
+    ngx_feature_name="NGX_HAVE_ARC4RANDOM_BUF"
+    ngx_feature_incs="#include <stdlib.h>"
+    ngx_feature_test="char buf[4]; arc4random_buf(buf, sizeof(buf));"
+    . auto/feature
+fi
+
 if test -n "$ngx_module_link"; then
     ngx_module_type=HTTP
     ngx_module_name=$ngx_addon_name
