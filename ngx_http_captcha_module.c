@@ -277,8 +277,10 @@ static char *ngx_http_captcha_charset(ngx_conf_t *cf, void *data, void *conf) {
     ngx_str_t *charset = conf;
     if (!charset->len) return "cannot be empty";
     for (u_char *p = charset->data, *last = p + charset->len; p < last; ) {
-        if (*p < 0x80) p++;
-        else if (ngx_utf8_decode(&p, last - p) > 0x10ffff) return "must be valid UTF-8";
+        if (*p < 0x80) { p++; continue; }
+        uint32_t u = ngx_utf8_decode(&p, last - p);
+        // ngx_utf8_decode() lets UTF-16 surrogates through, but they are not valid in UTF-8
+        if (u > 0x10ffff || (u >= 0xd800 && u <= 0xdfff)) return "must be valid UTF-8";
     }
     return NGX_CONF_OK;
 }

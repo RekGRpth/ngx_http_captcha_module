@@ -244,3 +244,20 @@ GET /captcha
 --- must_die
 --- error_log
 "captcha_level" directive must be between -1 and 9
+
+
+
+=== TEST 15: captcha_charset with an encoded UTF-16 surrogate is rejected
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        captcha_charset "abí €cd";
+    }
+--- request
+GET /captcha
+--- must_die
+--- error_log
+"captcha_charset" directive must be valid UTF-8
