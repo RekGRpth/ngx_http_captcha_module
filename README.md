@@ -46,6 +46,29 @@ hash, a solved captcha stops being accepted after `captcha_expire` seconds
 even if the client keeps the cookie. Within that time it can still be
 reused with the same csrf value, so rotate the csrf token after each check if
 a captcha must be strictly single-use.
+
+### Upgrading from older versions:
+
+* The cookie is now `<expires>.<hash>` and the hash covers the expiry, so the
+  old `set_md5 "secret${captcha}${csrf}"` check no longer matches. Switch to
+  `captcha_answer` and `$captcha_valid` as in the example above. Cookies issued
+  by the old version are rejected.
+* The cookie now gets `Path=/; HttpOnly; SameSite=Lax` (see `captcha_flags`).
+  If the captcha location is not at the root, e.g. `/auth/captcha`, browsers
+  may still hold an old cookie with `Path=/auth`. Being more specific, it is
+  sent first, so checks fail until it expires (up to `captcha_expire` seconds
+  after the upgrade). To avoid this, set `captcha_flags` to the old path,
+  e.g. `"Path=/auth; HttpOnly; SameSite=Lax"`, which overwrites the old cookie.
+* Configuration is validated more strictly. Out-of-range numbers,
+  `captcha_width` smaller than `captcha_length`, `captcha_level` above 9 and
+  `captcha_charset` that is not valid UTF-8 now stop nginx from starting.
+  Previously they were clamped or failed at request time.
+* `captcha_font` file paths are now honored. Previously gd treated them as
+  fontconfig patterns and silently used fontconfig's default font.
+* Re-run nginx's `configure` so that `getrandom()` or `arc4random_buf()` is
+  detected; otherwise the code falls back to the non-cryptographic
+  `ngx_random()`.
+
 ### Directives:
 
     Syntax:	 captcha;
