@@ -11,6 +11,7 @@
 
 typedef struct {
     ngx_flag_t icase;
+    ngx_flag_t path;
     ngx_int_t level;
     ngx_array_t *chars;
     ngx_str_t charset;
@@ -38,7 +39,34 @@ static int mt_rand(int min, int max) {
     return (ngx_random() % (max - min + 1)) + min;
 }
 
-static ngx_flag_t ngx_http_captcha_ft_inited = 0;
+typedef struct {
+    ngx_http_request_t *r;
+    ngx_http_captcha_location_t *location;
+    gdImagePtr img;
+    ngx_flag_t fallback;
+    ngx_flag_t logged;
+} ngx_http_captcha_draw_t;
+
+// captcha_font with "/" is a font file path, anything else is a fontconfig pattern;
+// if gd cannot use the path, the rest of the image is drawn with fontconfig's "sans" so that the captcha stays readable
+static void ngx_http_captcha_string(ngx_http_captcha_draw_t *draw, int color, double size, double angle, int x, int y, char *str) {
+    int brect[8];
+    for (;;) {
+        ngx_flag_t path = draw->location->path && !draw->fallback;
+        gdFTStringExtra strex = { .flags = path ? gdFTEX_FONTPATHNAME : gdFTEX_FONTCONFIG };
+        char *font = draw->fallback ? "sans" : (char *)draw->location->font.data;
+        char *err = gdImageStringFTEx(draw->img, brect, color, font, size, angle, x, y, str, &strex);
+        if (!err) return;
+        if (path) {
+            ngx_log_error(NGX_LOG_ERR, draw->r->connection->log, 0, "captcha: gdImageStringFTEx(\"%s\"): %s, falling back to fontconfig \"sans\"", font, err);
+            draw->fallback = 1;
+            continue;
+        }
+        if (!draw->logged) ngx_log_error(NGX_LOG_ERR, draw->r->connection->log, 0, "captcha: gdImageStringFTEx(\"%s\"): %s", font, err);
+        draw->logged = 1;
+        return;
+    }
+}
 
 static ngx_int_t ngx_http_captcha_random(ngx_http_request_t *r, u_char *buf, size_t len) {
 #if (NGX_HAVE_GETRANDOM)
@@ -154,27 +182,17 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
 #endif
     ngx_str_set(&r->headers_out.content_type, "image/png");
     r->headers_out.status = NGX_HTTP_OK;
-    if (!ngx_http_captcha_ft_inited) {
-        ngx_http_captcha_ft_inited = 1;
-        if (!gdFTUseFontConfig(1)) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "captcha: gd was built without fontconfig support, captcha_font must be a literal font file path"); }
-    }
     gdImagePtr img = gdImageCreateTrueColor(location->width, location->height);
     if (!img) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!gdImageCreateTrueColor"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    (void)gdImageFilledRectangle(img, 0, 0, location->width - 1, location->height - 1,gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
-    char *gd_err;
-    ngx_uint_t gd_err_logged = 0;
-    int brect[8];
+    (void)gdImageFilledRectangle(img, 0, 0, location->width - 1, location->height - 1, gdImageColorAllocate(img, mt_rand(157, 255), mt_rand(157, 255), mt_rand(157, 255)));
+    ngx_http_captcha_draw_t draw = {.r = r, .location = location, .img = img, .fallback = 0, .logged = 0};
     for (ngx_uint_t i = 0, x = location->width / location->length; i < location->length; i++) {
         u_char str[sizeof("\xf4\x8f\xbf\xbf")]; // the longest UTF-8 sequence plus '\0'
         *ngx_cpymem(str, chars[i].data, chars[i].len) = '\0';
-        gd_err = gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), (char *)location->font.data, location->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location->height / 1.4, (char *)str);
-        if (gd_err && !gd_err_logged) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "gdImageStringFT: %s", gd_err); gd_err_logged = 1; }
+        ngx_http_captcha_string(&draw, gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)), location->size, mt_rand(-30, 30) * (M_PI / 180), x * i + mt_rand(1, 5), location->height / 1.4, (char *)str);
     }
     for (ngx_uint_t i = 0; i < location->line; i++) (void)gdImageLine(img, mt_rand(0, location->width), mt_rand(0, location->height), mt_rand(0, location->width), mt_rand(0, location->height), gdImageColorAllocate(img, mt_rand(0, 156), mt_rand(0, 156), mt_rand(0, 156)));
-    for (ngx_uint_t i = 0; i < location->star; i++) {
-        gd_err = gdImageStringFT(img, brect, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), (char *)location->font.data, 8, 0, mt_rand(0, location->width), mt_rand(0, location->height), "*");
-        if (gd_err && !gd_err_logged) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "gdImageStringFT: %s", gd_err); gd_err_logged = 1; }
-    }
+    for (ngx_uint_t i = 0; i < location->star; i++) ngx_http_captcha_string(&draw, gdImageColorAllocate(img, mt_rand(200, 255), mt_rand(200, 255), mt_rand(200, 255)), 8, 0, mt_rand(0, location->width), mt_rand(0, location->height), "*");
     int size;
     u_char *img_buf = (u_char *)gdImagePngPtrEx(img, &size, location->level);
     (void)gdImageDestroy(img);
@@ -398,6 +416,7 @@ static char *ngx_http_captcha_merge_loc_conf(ngx_conf_t *cf, void *parent, void 
     ngx_conf_merge_str_value(conf->csrf, prev->csrf, "csrf");
     ngx_conf_merge_str_value(conf->font, prev->font, "/usr/local/share/fonts/NimbusSans-Regular.ttf");
     ngx_conf_merge_str_value(conf->name, prev->name, "Captcha");
+    conf->path = ngx_strlchr(conf->font.data, conf->font.data + conf->font.len, '/') != NULL;
     if (!conf->answer) conf->answer = prev->answer;
     if (!conf->flags) conf->flags = prev->flags;
     if (!conf->secret) conf->secret = prev->secret;

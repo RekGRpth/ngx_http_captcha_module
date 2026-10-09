@@ -5,7 +5,7 @@ use Test::Nginx::Socket;
 
 repeat_each(1);
 
-plan tests => repeat_each() * 21;
+plan tests => repeat_each() * 25;
 
 no_long_string();
 
@@ -182,3 +182,37 @@ GET /captcha?csrf=token
 --- error_code: 200
 --- response_headers
 Cache-Control: no-cache
+
+
+
+=== TEST 11: unusable captcha_font path falls back to fontconfig and is logged
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        captcha_font /nonexistent/font.ttf;
+    }
+--- request
+GET /captcha?csrf=token
+--- error_code: 200
+--- error_log
+gdImageStringFTEx("/nonexistent/font.ttf"): Could not find/open font, falling back to fontconfig "sans"
+
+
+
+=== TEST 12: captcha_font without "/" is a fontconfig pattern
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        captcha_font "sans:bold";
+    }
+--- request
+GET /captcha?csrf=token
+--- error_code: 200
+--- no_error_log
+gdImageStringFTEx

@@ -147,7 +147,10 @@ behind a TLS-terminating proxy). An empty string adds no attributes.<hr>
     Default: /usr/local/share/fonts/NimbusSans-Regular.ttf
     Context: http, server, location
 
-Sets font of captcha text.<hr>
+Sets font of captcha text. A value containing `/` is a font file path;
+anything else is a fontconfig pattern, e.g. `"DejaVu Sans:bold"`. If gd cannot
+use the file, the error is logged and the text is drawn with fontconfig's
+`sans` instead.<hr>
 
     Syntax:	 captcha_name string;
     Default: Captcha
