@@ -5,7 +5,7 @@ use Test::Nginx::Socket;
 
 repeat_each(1);
 
-plan tests => repeat_each() * 17;
+plan tests => repeat_each() * 21;
 
 no_long_string();
 
@@ -149,3 +149,36 @@ GET /captcha?csrf=token
 --- error_code: 200
 --- response_headers_like
 Set-Cookie: Captcha=\d+\.[0-9a-f]{32}; Max-Age=300
+
+
+
+=== TEST 9: captcha image is not cacheable
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+    }
+--- request
+GET /captcha?csrf=token
+--- error_code: 200
+--- response_headers
+Cache-Control: no-store
+
+
+
+=== TEST 10: expires replaces the module's Cache-Control instead of adding a second one
+--- main_config
+    load_module /etc/nginx/modules/ngx_http_captcha_module.so;
+--- config
+    location = /captcha {
+        captcha;
+        captcha_secret secret;
+        expires epoch;
+    }
+--- request
+GET /captcha?csrf=token
+--- error_code: 200
+--- response_headers
+Cache-Control: no-cache

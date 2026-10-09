@@ -96,6 +96,15 @@ static ngx_int_t ngx_http_captcha_handler(ngx_http_request_t *r) {
     if (flags.len) last = ngx_sprintf(last, "; %V", &flags);
     set_cookie_name->value.data = value;
     set_cookie_name->value.len = last - value;
+    ngx_table_elt_t *cache_control = ngx_list_push(&r->headers_out.headers);
+    if (!cache_control) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    cache_control->hash = 1;
+    ngx_str_set(&cache_control->key, "Cache-Control");
+    ngx_str_set(&cache_control->value, "no-store");
+#if (nginx_version >= 1023000)
+    cache_control->next = NULL;
+    r->headers_out.cache_control = cache_control;
+#endif
     ngx_str_set(&r->headers_out.content_type, "image/png");
     r->headers_out.status = NGX_HTTP_OK;
     if (!ngx_http_captcha_ft_inited) {

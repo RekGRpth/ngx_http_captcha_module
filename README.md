@@ -53,7 +53,8 @@ a captcha must be strictly single-use.
     Context: location
 
 Enables generation of captcha image. Only GET requests are accepted; any
-other method, including HEAD, gets a 405 response.<hr>
+other method, including HEAD, gets a 405 response. The image is sent with
+`Cache-Control: no-store`; the `expires` directive replaces it if set.<hr>
 
     Syntax:	 captcha_answer string;
     Default: ——
