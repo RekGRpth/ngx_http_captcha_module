@@ -27,7 +27,7 @@ __DATA__
 GET /captcha
 --- must_die
 --- error_log
-captcha size is too large
+captcha_size 20 is larger than captcha_height 10
 
 
 
@@ -44,7 +44,7 @@ captcha size is too large
 GET /captcha
 --- must_die
 --- error_log
-captcha charset cannot be empty
+"captcha_charset" directive cannot be empty
 
 
 
@@ -61,7 +61,7 @@ captcha charset cannot be empty
 GET /captcha
 --- must_die
 --- error_log
-captcha font cannot be empty
+"captcha_font" directive cannot be empty
 
 
 
@@ -78,7 +78,7 @@ captcha font cannot be empty
 GET /captcha
 --- must_die
 --- error_log
-captcha name cannot be empty
+"captcha_name" directive cannot be empty
 
 
 
@@ -95,4 +95,4 @@ captcha name cannot be empty
 GET /captcha
 --- must_die
 --- error_log
-captcha csrf cannot be empty
+"captcha_csrf" directive cannot be empty
