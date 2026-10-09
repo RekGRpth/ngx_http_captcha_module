@@ -27,16 +27,25 @@ location =/captcha {
     captcha;
 }
 location =/login {
-    set_form_input $csrf_form csrf;
-    set_unescape_uri $csrf_unescape $csrf_form;
     set_form_input $captcha_form captcha;
     set_unescape_uri $captcha_unescape $captcha_form;
-    set_md5 $captcha_md5 "secret${captcha_unescape}${csrf_unescape}";
-    if ($captcha_md5 != $cookie_captcha) {
+    captcha_answer $captcha_unescape;
+    if ($captcha_valid != 1) {
         # captcha invalid code
     }
 }
 ```
+`captcha_secret` (and any other `captcha_*` settings) must be the same for
+the captcha location and the location that checks `$captcha_valid`, so it is
+simplest to set them at the `server` or `http` level.
+
+The captcha cookie has the form `<expires>.<hash>`, where `expires` is a unix
+timestamp and `hash = md5(secret + expires + "." + code + csrf)` (`code` is
+lowercased when `captcha_case` is on). Because the expiry is covered by the
+hash, a solved captcha stops being accepted after `captcha_expire` seconds
+even if the client keeps the cookie. Within that time it can still be
+reused with the same csrf value, so rotate the csrf token after each check if
+a captcha must be strictly single-use.
 ### Directives:
 
     Syntax:	 captcha;
@@ -45,6 +54,13 @@ location =/login {
 
 Enables generation of captcha image. Only GET requests are accepted; any
 other method, including HEAD, gets a 405 response.<hr>
+
+    Syntax:	 captcha_answer string;
+    Default: ——
+    Context: http, server, location
+
+Sets the user's answer to check with `$captcha_valid`. The value can contain
+variables.<hr>
 
     Syntax:	 captcha_case on | off;
     Default: on
@@ -132,3 +148,13 @@ Sets name of captcha cookie.<hr>
 Sets secret of captcha. Mandatory: a location that enables `captcha;`
 without a `captcha_secret` set anywhere in its config hierarchy will
 return a 500 for every request.
+
+### Variables:
+
+    $captcha_valid
+
+`1` if the captcha cookie (named by `captcha_name`) is not expired and its hash
+matches `captcha_answer`, `captcha_secret` and the csrf value, otherwise `0`.
+The csrf value is taken from the cookie named by `captcha_csrf`, or from the
+argument of the same name if there is no such cookie, just like when the
+captcha image is generated.

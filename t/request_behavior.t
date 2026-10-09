@@ -94,7 +94,7 @@ Content-Type: image/png
 GET /captcha?csrf=token
 --- error_code: 200
 --- response_headers_like
-Set-Cookie: MyCaptcha=[0-9a-f]{32}; Max-Age=123
+Set-Cookie: MyCaptcha=\d+\.[0-9a-f]{32}; Max-Age=123
 
 
 
